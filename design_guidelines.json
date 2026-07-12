@@ -1,0 +1,115 @@
+{
+  "theme": "dark",
+  "typography": {
+    "fonts": {
+      "headings": "Outfit",
+      "body": "Manrope",
+      "monospace": "JetBrains Mono"
+    },
+    "installation_steps": "yarn add @fontsource/outfit @fontsource/manrope @fontsource/jetbrains-mono",
+    "rules": [
+      "Use Outfit for all headings (H1-H6) with tracking-tight. NEVER use Inter for headings.",
+      "Use JetBrains Mono for all lottery numbers, percentages, and statistical data. It reinforces the 'Architect of Luck' AI vibe.",
+      "Use Manrope for body text and standard UI labels for maximum readability.",
+      "Headlines (Size > 32px) MUST use tracking-tight."
+    ]
+  },
+  "colors": {
+    "archetype": "Electric & Neon / Crystal Sky Hybrid",
+    "palette": {
+      "background": "#030712",
+      "foreground": "#f8fafc",
+      "card": "#0f172a",
+      "card_foreground": "#f8fafc",
+      "primary": "#0ea5e9",
+      "primary_foreground": "#ffffff",
+      "accent": "#38bdf8",
+      "muted": "#1e293b",
+      "muted_foreground": "#94a3b8",
+      "border": "rgba(255, 255, 255, 0.1)"
+    },
+    "rules": [
+      "The app MUST default to Dark Mode to make the Sky Blue colors pop and feel futuristic.",
+      "Base dark is Midnight Void (#030712). Never use pure black.",
+      "Use 'Electric Sky Blue' (#0ea5e9) as the kinetic trigger for buttons and AI actions.",
+      "Use 'Crystal Glass' effect for floating headers: bg-black/60 backdrop-blur-xl border-b border-white/10."
+    ]
+  },
+  "visual enhancers": {
+    "surfaces": [
+      "Glassmorphism (Crystal Variant): Use for top sticky nav and AI prediction container overlay. High blur (backdrop-blur-xl) with slight white border.",
+      "The Tracing Beam: Use a subtle gradient border effect on the main AI Prediction card to indicate active processing.",
+      "Bento Grid: For the dashboard statistics view, use dense, varied grid spans."
+    ],
+    "lottery_balls": "Use pure CSS/Tailwind for 3D spheres: rounded-full bg-gradient-to-br from-sky-300 to-sky-600 shadow-[inset_-4px_-4px_10px_rgba(0,0,0,0.3),_4px_8px_16px_rgba(14,165,233,0.3)] flex items-center justify-center font-mono font-bold text-white text-xl."
+  },
+  "component name": {
+    "buttons": "Pill-shaped (rounded-full) for primary actions. Use glow on hover: hover:shadow-[0_0_20px_rgba(14,165,233,0.5)].",
+    "cards": "Subtle border (border-white/10), flat background (#0f172a). Use Shadcn Cards but remove heavy default styles.",
+    "charts": "Use Recharts (via Shadcn) for Hot/Cold numbers and frequency charts. Strip out grid lines for a cleaner, modern look. Use Sky Blue for chart bars/lines.",
+    "navigation": "Sticky top nav with Glassmorphism. Segmented control for UK Lotto vs EuroMillions selection.",
+    "forms": "Use Shadcn Input/Form components but styled with dark backgrounds and blue focus rings."
+  },
+  "grids": {
+    "bento_protocol": "High density but asymmetrical. Example: AI Predictor spans col-span-full md:col-span-8, Hot/Cold Stats span col-span-4."
+  },
+  "layouts": {
+    "spacing": "Generous Spacing: Dashboard cards MUST have p-6 or p-8 padding. No cramped text.",
+    "mobile": "Mobile-first responsive grids. Stack stats in a single column on mobile. Ensure minimum 44x44px touch targets.",
+    "alignment": "Left-align data tables and statistical forms. Center-align only the main AI Prediction generator outputs."
+  },
+  "motion": {
+    "libraries": "framer-motion",
+    "installation_steps": "yarn add framer-motion",
+    "rules": [
+      "Stagger entrance animations for lottery balls (e.g., delay 0.1s per ball) to create suspense when the AI predicts numbers.",
+      "Hover states on history table rows should subtly lift (-translate-y-[2px]) and highlight bg color.",
+      "Use framer-motion for smooth transitions between UK Lotto and EuroMillions dashboard views."
+    ]
+  },
+  "accessibility": {
+    "rules": [
+      "All interactive elements MUST include data-testid.",
+      "Ensure sufficient contrast for sky blue text on dark backgrounds.",
+      "Support prefers-reduced-motion for the lottery ball animations.",
+      "Add aria-hidden='true' to purely decorative icons."
+    ]
+  },
+  "media": {
+    "icons": {
+      "library": "@phosphor-icons/react",
+      "installation_steps": "yarn add @phosphor-icons/react",
+      "rules": "Use Phosphor Icons (Duotone or Regular) for a sophisticated tech look."
+    },
+    "image urls": {
+      "hero_background": {
+        "url": "https://images.unsplash.com/photo-1727434032773-af3cd98375ba",
+        "category": "landing_page_bg",
+        "description": "Abstract glowing data fibers, used as an overlay behind the hero section or login page. Use with low opacity (e.g., 20%) to add texture."
+      },
+      "ai_core_overlay": {
+        "url": "https://images.unsplash.com/photo-1653549893012-b8b4fbe97630",
+        "category": "dashboard_prediction_card_bg",
+        "description": "Computer generated circular object glowing. Use as a faded, masked background inside the AI Prediction card to give an 'AI Brain' vibe. Must not overpower the numbers."
+      }
+    }
+  },
+  "3d libraries": {
+    "recommendation": "Use purely CSS/Tailwind (inset shadows, gradients) + framer-motion for the 3D lottery balls to maintain high performance. No heavy WebGL libraries (Three.js/R3F) needed for spheres.",
+    "charts_library": "Use Recharts for the statistical analysis."
+  },
+  "instructions_to_main_agent": [
+    "Prioritize a high-contrast dark theme to make the sky blue accents pop. It fits the 'AI Prediction' aesthetic perfectly.",
+    "The AI generator should look magical but mathematical.",
+    "Ensure all dashboard widgets stretch to fill the grid heights properly (no jagged bottoms)."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Do not use transparent backgrounds without a blur/scrim for headers.",
+    "Never apply universal transition: all.",
+    "Do not center align the entire app container (.App { text-align: center }).",
+    "Create depth with layered elements and z-index hierarchy.",
+    "Use sonner for toasts notifications.",
+    "You MUST use the exact fonts specified, properly installed and applied via Tailwind config.",
+    "NEVER use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons."
+  ]
+}
