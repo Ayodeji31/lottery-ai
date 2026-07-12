@@ -145,6 +145,42 @@ class TestAuth:
         r = s.get(f"{API}/auth/me")
         assert r.status_code == 401
 
+    def test_register_returns_access_token(self, anon_client):
+        email = f"test_user_{uuid.uuid4().hex[:8]}@lottopredict.app"
+        r = anon_client.post(f"{API}/auth/register", json={
+            "name": "Bearer User", "email": email, "password": TEST_USER_PASSWORD
+        })
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert isinstance(body.get("access_token"), str)
+        assert len(body["access_token"]) > 20
+        assert body["email"] == email
+
+    def test_login_returns_access_token(self, anon_client):
+        r = anon_client.post(f"{API}/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD})
+        assert r.status_code == 200
+        body = r.json()
+        assert isinstance(body.get("access_token"), str)
+        assert len(body["access_token"]) > 20
+
+    def test_bearer_only_me_no_cookies(self, anon_client):
+        # Login and grab token from body
+        r = anon_client.post(f"{API}/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD})
+        assert r.status_code == 200
+        token = r.json()["access_token"]
+        # Fresh session (no cookies) + Authorization header
+        s = requests.Session()
+        s.headers.update({"Authorization": f"Bearer {token}"})
+        r = s.get(f"{API}/auth/me")
+        assert r.status_code == 200, r.text
+        assert r.json()["email"] == ADMIN_EMAIL
+
+    def test_bearer_invalid_token(self, anon_client):
+        s = requests.Session()
+        s.headers.update({"Authorization": "Bearer notavalidjwt"})
+        r = s.get(f"{API}/auth/me")
+        assert r.status_code == 401
+
     def test_logout(self, registered_user):
         # use a fresh session to avoid corrupting the shared session
         s = requests.Session()
@@ -199,6 +235,22 @@ class TestPredictions:
         for p in preds:
             assert len(p["main_numbers"]) == 6
             assert len(p["bonus_numbers"]) == 1
+
+
+# ---------- PWA ----------
+class TestPWA:
+    def test_manifest_json(self, anon_client):
+        # PWA manifest is served by frontend origin (same origin as REACT_APP_BACKEND_URL)
+        r = anon_client.get(f"{BASE_URL}/manifest.json", timeout=15)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert "name" in data or "short_name" in data
+        assert "icons" in data
+
+    def test_service_worker(self, anon_client):
+        r = anon_client.get(f"{BASE_URL}/sw.js", timeout=15)
+        assert r.status_code == 200
+        assert "serviceWorker" in r.text or "self.addEventListener" in r.text
 
 
 # ---------- Saved predictions ----------

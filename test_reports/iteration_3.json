@@ -1,0 +1,27 @@
+{
+  "summary": "Verified the signup bug fix (Bearer token in body + localStorage) and full regression. 28/28 backend pytest pass (added 6 new tests: register/login access_token in body, Bearer-only /auth/me without cookies, invalid Bearer, manifest.json, sw.js). Frontend E2E all pass: signup redirects to /dashboard without auth-error and lotto_token (len 227) is stored; page reload keeps session on /dashboard; logout clears token and post-logout reload redirects to /auth. Admin login (admin@lottopredict.app/admin123) reaches dashboard. Dashboard renders game toggle (lotto/euromillions), hot/cold/overdue cards, frequency chart, 52 real historical draws for both games. Statistical predict returns 3 sets, save persists, /saved lists items, delete removes them. Mobile 390x844: landing/auth/dashboard have 0px horizontal overflow, nav is compact (icons) and usable.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "auth.py set_auth_cookies still uses secure=False and samesite='lax'. On the deployed https preview this means cookies work, but for cross-site mobile webviews samesite='none' + secure=True would be required. The Bearer-in-body fallback now covers that gap, so functionally fine.",
+    "AuthContext.jsx does not attempt a silent refresh on 401 - once the 12h access token expires the user is logged out. Consider using the existing refresh_token cookie to auto-refresh (backend already issues one via set_auth_cookies, but no /auth/refresh endpoint is exposed).",
+    "PWA sw.js is present but nothing in index.html registers it (no navigator.serviceWorker.register). The manifest is linked, so 'Add to Home screen' works, but offline caching will never activate. Non-blocking for MVP.",
+    "backend/tests/backend_test.py still hard-codes a default BASE_URL fallback; per env-var policy it should raise if REACT_APP_BACKEND_URL is unset (carried over from prev iteration).",
+    "api.js interceptor sends Authorization on every request including /auth/login and /auth/register. Harmless (backend ignores unused tokens for these routes) but slightly noisy - could guard with a URL check."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added TestAuth: test_register_returns_access_token, test_login_returns_access_token, test_bearer_only_me_no_cookies, test_bearer_invalid_token; added TestPWA: test_manifest_json, test_service_worker)"
+  ],
+  "success_rate": {"backend": "100% (28/28)", "frontend": "100% of covered flows"},
+  "test_credentials": "admin@lottopredict.app / admin123 confirmed working. Fresh signup emails generated per run (e2e_signup_<uuid>@example.com).",
+  "seed_data_creation": "Each run registers ~3 disposable users via /api/auth/register and creates 1 saved prediction that is deleted at end of flow.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: pytest /app/backend/tests/backend_test.py -v --junitxml=/app/test_reports/pytest/pytest_results.xml (28 tests, ~5s). Bearer token localStorage key is 'lotto_token' (frontend/src/lib/api.js). PWA endpoints /manifest.json and /sw.js are served by frontend origin (same host as REACT_APP_BACKEND_URL). Service worker is NOT registered from index.html - flag if user asks for offline behaviour. All primary testids: auth-toggle-mode, auth-name-input, auth-email-input, auth-password-input, auth-submit, auth-error, nav-dashboard, nav-saved, nav-logout, game-toggle-lotto/euromillions, predict-statistical/ai buttons (text selector works), prediction-set-<i>, save-prediction-<i>, saved-item-<id>, delete-saved-<id>.",
+  "rca of the issue": "Original 'Something went wrong. Please try again.' was a transient backend import crash + cookie-only auth that failed silently in some mobile webviews. Fix: (a) backend register/login now include access_token in JSON body, (b) get_current_user falls back to Authorization: Bearer header, (c) frontend stores token in localStorage under 'lotto_token' and axios interceptor attaches it to every request, (d) AuthContext checks token on mount and clears on 401 / logout. Verified end-to-end: signup succeeds, reload persists session, logout clears session, PWA manifest/sw served."
+}

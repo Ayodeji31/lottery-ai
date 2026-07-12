@@ -110,9 +110,10 @@ async def register(payload: RegisterInput, response: Response):
     }
     result = await db.users.insert_one(doc)
     uid = str(result.inserted_id)
-    set_auth_cookies(response, create_access_token(uid, email), create_refresh_token(uid))
+    access = create_access_token(uid, email)
+    set_auth_cookies(response, access, create_refresh_token(uid))
     doc["_id"] = result.inserted_id
-    return serialize_user(doc)
+    return {**serialize_user(doc), "access_token": access}
 
 
 @auth_router.post("/login")
@@ -122,8 +123,9 @@ async def login(payload: LoginInput, response: Response):
     if not user or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     uid = str(user["_id"])
-    set_auth_cookies(response, create_access_token(uid, email), create_refresh_token(uid))
-    return serialize_user(user)
+    access = create_access_token(uid, email)
+    set_auth_cookies(response, access, create_refresh_token(uid))
+    return {**serialize_user(user), "access_token": access}
 
 
 @auth_router.post("/logout")

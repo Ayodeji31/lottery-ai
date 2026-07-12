@@ -1,0 +1,15 @@
+{
+  "short_name": "LottoLuck AI",
+  "name": "LottoLuck AI — Lottery Predictor",
+  "description": "AI + statistical predictions for UK National Lottery & EuroMillions.",
+  "icons": [
+    { "src": "favicon.ico", "sizes": "64x64", "type": "image/x-icon" },
+    { "src": "icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" },
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable" }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0ea5e9",
+  "background_color": "#030712"
+}
