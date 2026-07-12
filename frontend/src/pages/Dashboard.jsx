@@ -58,6 +58,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     api.get("/games").then((r) => setGames(r.data));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -170,7 +171,7 @@ export default function Dashboard() {
                 {summary && <p className="text-sm text-muted-foreground mb-2">{summary}</p>}
                 {preds.map((p, i) => (
                   <motion.div
-                    key={i}
+                    key={`${active}-${p.main_numbers.join("-")}-${i}`}
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.15 }}

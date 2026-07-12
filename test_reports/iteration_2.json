@@ -1,0 +1,34 @@
+{
+  "summary": "Regression run after code-quality refactor (predict_ai helpers, SavedPredictionInput Pydantic model, env-driven test creds, frontend lint/key fixes). All 22 backend pytest tests pass (added test_saved_unknown_game_400 to cover new 400 validation branch). Frontend E2E flows all pass: landing loads, protected routes redirect to /auth, admin login+dashboard render, game toggle, statistical + AI predictions each return 3 sets with correct main/bonus counts, save persists, saved page lists & deletes, register->dashboard, logout re-protects routes. Real historical draws: lotto=52, euromillions=52 (previous lotto scraper regression is fixed).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "predict_ai now split into _build_ai_prompt / _call_ai / _ai_fallback / _sanitize_predictions - clean and unit-testable. Exception handler still uses `except Exception:` broadly but now logs with exc_info=True (good). Consider narrowing to (json.JSONDecodeError, KeyError, RequestException) if desired.",
+    "SavedPredictionInput has no numeric bounds on main_numbers/bonus_numbers. It rejects unknown game (400) but a user can still POST main_numbers=[999,1000,...] outside 1..main_max. Not a functional blocker but worth adding conint(ge=1, le=cfg.main_max) validation.",
+    "POST /api/refresh/{game} correctly guarded (admin only) - confirmed in code.",
+    "auth.py set_auth_cookies still uses secure=False; acceptable for local but should be env-driven for production HTTPS deployment.",
+    "backend/tests/backend_test.py hard-codes a default BASE_URL fallback ('https://jackpot-analyzer-24.preview.emergentagent.com'). Per env-var guideline, should raise if REACT_APP_BACKEND_URL is missing rather than silently defaulting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added TestSaved::test_saved_unknown_game_400 for new Pydantic 400 branch)"
+  ],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100% of covered flows"},
+  "test_credentials": "admin@lottopredict.app / admin123 works. Tests register disposable test_user_<uuid>@lottopredict.app / Passw0rd! per run.",
+  "seed_data_creation": "Each pytest run registers 2 disposable users via /api/auth/register; not cleaned up.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app && pytest backend/tests/backend_test.py -v --junitxml=/app/test_reports/pytest/pytest_results.xml (22 tests, ~5s). Real Emergent LLM AI call is exercised in TestPredictions::test_ai. Draw counts verified: lotto=52, euromillions=52. Frontend testids all present under pages/Dashboard.jsx, Auth.jsx, Saved.jsx, Navbar.jsx.",
+  "rca of the issue": "No unresolved issues. Prior iteration_1 lotto-only-10-draws issue no longer reproduces - both games return 52 real historical draws through /api/draws and /api/stats."
+}

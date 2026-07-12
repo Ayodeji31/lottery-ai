@@ -4,12 +4,13 @@ import json
 import uuid
 import random
 import logging
-import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import datetime, timezone
 
 import requests
+from typing import List
 from fastapi import APIRouter, HTTPException, Depends, Query
+from pydantic import BaseModel
 
 from auth import db, get_current_user
 from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -232,26 +233,19 @@ async def predict_statistical(game: str, user: dict = Depends(get_current_user))
     return {"method": "statistical", "game": game, "predictions": preds}
 
 
-@lottery_router.post("/predict/ai/{game}")
-async def predict_ai(game: str, user: dict = Depends(get_current_user)):
-    if game not in GAMES:
-        raise HTTPException(status_code=404, detail="Unknown game")
-    await ensure_data()
-    cfg = GAMES[game]
-    draws_list = await _get_draws(game)
-    stats_data = compute_stats(draws_list, cfg)
+AI_SYSTEM = (
+    "You are a lottery statistics analyst. You know lottery draws are random and "
+    "cannot be truly predicted, but you provide statistically-informed number suggestions "
+    "for entertainment. Always respond with STRICT JSON only, no markdown."
+)
 
+
+def _build_ai_prompt(cfg, stats_data, draws_list):
     hot = [h["number"] for h in stats_data["hot"]]
     cold = [c["number"] for c in stats_data["cold"]]
     overdue = [o["number"] for o in stats_data["overdue"]]
     recent = [d["main_numbers"] for d in draws_list[:8]]
-
-    system = (
-        "You are a lottery statistics analyst. You know lottery draws are random and "
-        "cannot be truly predicted, but you provide statistically-informed number suggestions "
-        "for entertainment. Always respond with STRICT JSON only, no markdown."
-    )
-    prompt = f"""Game: {cfg['name']}
+    return f"""Game: {cfg['name']}
 Rules: pick {cfg['main_count']} main numbers from 1-{cfg['main_max']} and {cfg['bonus_count']} {cfg['bonus_label']} from 1-{cfg['bonus_max']}.
 Historical analysis over {stats_data['total_draws']} draws:
 - Hot numbers (most frequent): {hot}
@@ -263,44 +257,74 @@ Generate 3 distinct suggested number sets balancing hot and overdue numbers.
 Respond in this exact JSON schema:
 {{"predictions":[{{"main_numbers":[...],"bonus_numbers":[...],"reasoning":"one short sentence"}}],"summary":"2 sentence overview of the strategy"}}"""
 
-    try:
-        chat = LlmChat(
-            api_key=os.environ["EMERGENT_LLM_KEY"],
-            session_id=f"predict-{game}-{uuid.uuid4()}",
-            system_message=system,
-        ).with_model("openai", "gpt-5.4")
-        reply = await chat.send_message(UserMessage(text=prompt))
-        text = reply.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        data = json.loads(text)
-    except Exception as e:
-        logger.warning(f"AI prediction failed, using fallback: {e}")
-        preds = statistical_prediction(stats_data, cfg, sets=3)
-        for p in preds:
-            p["reasoning"] = "Balanced blend of hot and overdue numbers."
-        data = {"predictions": preds, "summary": "Statistical fallback based on frequency and overdue analysis."}
 
-    # sanitize
+async def _call_ai(game, prompt):
+    chat = LlmChat(
+        api_key=os.environ["EMERGENT_LLM_KEY"],
+        session_id=f"predict-{game}-{uuid.uuid4()}",
+        system_message=AI_SYSTEM,
+    ).with_model("openai", "gpt-5.4")
+    reply = (await chat.send_message(UserMessage(text=prompt))).strip()
+    if reply.startswith("```"):
+        reply = reply.split("```")[1]
+        if reply.startswith("json"):
+            reply = reply[4:]
+    return json.loads(reply)
+
+
+def _ai_fallback(stats_data, cfg):
+    preds = statistical_prediction(stats_data, cfg, sets=3)
+    for p in preds:
+        p["reasoning"] = "Balanced blend of hot and overdue numbers."
+    return {"predictions": preds, "summary": "Statistical fallback based on frequency and overdue analysis."}
+
+
+def _sanitize_predictions(data, cfg):
     for p in data.get("predictions", []):
-        p["main_numbers"] = sorted(list(dict.fromkeys(p.get("main_numbers", [])))[:cfg["main_count"]])
-        p["bonus_numbers"] = sorted(list(dict.fromkeys(p.get("bonus_numbers", [])))[:cfg["bonus_count"]])
+        p["main_numbers"] = sorted(list(dict.fromkeys(p.get("main_numbers", [])))[: cfg["main_count"]])
+        p["bonus_numbers"] = sorted(list(dict.fromkeys(p.get("bonus_numbers", [])))[: cfg["bonus_count"]])
+    return data
+
+
+@lottery_router.post("/predict/ai/{game}")
+async def predict_ai(game: str, user: dict = Depends(get_current_user)):
+    if game not in GAMES:
+        raise HTTPException(status_code=404, detail="Unknown game")
+    await ensure_data()
+    cfg = GAMES[game]
+    draws_list = await _get_draws(game)
+    stats_data = compute_stats(draws_list, cfg)
+    prompt = _build_ai_prompt(cfg, stats_data, draws_list)
+    try:
+        data = await _call_ai(game, prompt)
+    except Exception:
+        logger.warning("AI prediction failed, using fallback", exc_info=True)
+        data = _ai_fallback(stats_data, cfg)
+    data = _sanitize_predictions(data, cfg)
     return {"method": "ai", "game": game, **data}
 
 
 # ---------- Saved predictions ----------
+class SavedPredictionInput(BaseModel):
+    game: str
+    method: str = "manual"
+    main_numbers: List[int] = []
+    bonus_numbers: List[int] = []
+    reasoning: str = ""
+
+
 @lottery_router.post("/saved")
-async def save_prediction(payload: dict, user: dict = Depends(get_current_user)):
+async def save_prediction(payload: SavedPredictionInput, user: dict = Depends(get_current_user)):
+    if payload.game not in GAMES:
+        raise HTTPException(status_code=400, detail="Unknown game")
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": str(user["_id"]),
-        "game": payload.get("game"),
-        "method": payload.get("method", "manual"),
-        "main_numbers": payload.get("main_numbers", []),
-        "bonus_numbers": payload.get("bonus_numbers", []),
-        "reasoning": payload.get("reasoning", ""),
+        "game": payload.game,
+        "method": payload.method,
+        "main_numbers": payload.main_numbers,
+        "bonus_numbers": payload.bonus_numbers,
+        "reasoning": payload.reasoning,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.saved_predictions.insert_one({**doc})

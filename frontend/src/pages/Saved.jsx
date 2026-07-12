@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Trash2, Bookmark, Brain, Calculator } from "lucide-react";
 import { toast } from "sonner";
@@ -12,11 +12,11 @@ const gameName = (g) => (g === "lotto" ? "UK Lotto" : "EuroMillions");
 export default function Saved() {
   const [items, setItems] = useState(null);
 
-  const load = () => api.get("/saved").then((r) => setItems(r.data));
+  const load = useCallback(() => api.get("/saved").then((r) => setItems(r.data)), []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const remove = async (id) => {
     try {

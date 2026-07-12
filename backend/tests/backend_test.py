@@ -12,8 +12,9 @@ import requests
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://jackpot-analyzer-24.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN_EMAIL = "admin@lottopredict.app"
-ADMIN_PASSWORD = "admin123"
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@lottopredict.app")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
+TEST_USER_PASSWORD = os.environ.get("TEST_USER_PASSWORD", "Passw0rd!")
 
 
 # ---------- Fixtures ----------
@@ -40,7 +41,7 @@ def registered_user():
     s = requests.Session()
     s.headers.update({"Content-Type": "application/json"})
     email = f"test_user_{uuid.uuid4().hex[:8]}@lottopredict.app"
-    password = "Passw0rd!"
+    password = TEST_USER_PASSWORD
     r = s.post(f"{API}/auth/register", json={"name": "Test User", "email": email, "password": password})
     assert r.status_code == 200, f"Register failed: {r.status_code} {r.text}"
     return {"session": s, "email": email, "password": password, "user": r.json()}
@@ -134,7 +135,7 @@ class TestAuth:
 
     def test_register_duplicate(self, anon_client, registered_user):
         r = anon_client.post(f"{API}/auth/register", json={
-            "name": "dup", "email": registered_user["email"], "password": "Passw0rd!"
+            "name": "dup", "email": registered_user["email"], "password": TEST_USER_PASSWORD
         })
         assert r.status_code == 400
 
@@ -206,6 +207,14 @@ class TestSaved:
         assert anon_client.get(f"{API}/saved").status_code == 401
         assert anon_client.post(f"{API}/saved", json={"game": "lotto"}).status_code == 401
 
+    def test_saved_unknown_game_400(self, registered_user):
+        s = registered_user["session"]
+        r = s.post(f"{API}/saved", json={
+            "game": "bogusgame", "method": "manual",
+            "main_numbers": [1, 2, 3], "bonus_numbers": [],
+        })
+        assert r.status_code == 400, r.text
+
     def test_saved_crud(self, registered_user):
         s = registered_user["session"]
         payload = {
@@ -247,7 +256,7 @@ class TestSaved:
         s2 = requests.Session()
         s2.headers.update({"Content-Type": "application/json"})
         email = f"TEST_user_{uuid.uuid4().hex[:8]}@lottopredict.app"
-        r = s2.post(f"{API}/auth/register", json={"name": "u2", "email": email, "password": "Passw0rd!"})
+        r = s2.post(f"{API}/auth/register", json={"name": "u2", "email": email, "password": TEST_USER_PASSWORD})
         assert r.status_code == 200
 
         s1 = registered_user["session"]

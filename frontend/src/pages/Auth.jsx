@@ -33,6 +33,12 @@ export default function Auth() {
     }
   };
 
+  const submitLabel = loading
+    ? "Please wait…"
+    : mode === "login"
+      ? "Sign in"
+      : "Create account";
+
   return (
     <div className="min-h-screen grid-bg flex items-center justify-center px-4 py-12">
       <motion.div
@@ -107,7 +113,7 @@ export default function Auth() {
             disabled={loading}
             className="w-full rounded-full h-11 font-semibold hover:shadow-[0_0_20px_rgba(14,165,233,0.5)] transition-shadow"
           >
-            {loading ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
+            {submitLabel}
           </Button>
         </form>
 

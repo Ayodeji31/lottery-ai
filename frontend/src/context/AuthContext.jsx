@@ -13,6 +13,8 @@ export const AuthProvider = ({ children }) => {
       .then((r) => setUser(r.data))
       .catch(() => setUser(false))
       .finally(() => setReady(true));
+    // run once on mount to check existing session
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (email, password) => {
