@@ -1,0 +1,43 @@
+{
+  "summary": "Comprehensive backend + frontend testing of LottoPredict. 21/21 backend pytest tests pass (games, draws, stats, auth register/login/logout/me, statistical + AI predictions, saved CRUD, per-user isolation, auth guards). Frontend flows pass end-to-end: landing renders, protected routes redirect to /auth, admin login works, dashboard shows stats/hot/cold/overdue/frequency chart/recent draws, game toggle works, both Statistical and AI predictions render 3 sets with balls, save persists, Saved page lists items, delete works, logout works and re-protects routes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/stats/lotto & /api/draws/lotto", "issue": "Only 10 real historical Lotto draws scraped vs ~52 expected in spec. EuroMillions correctly returns 52. Regex in lottery.py _parse_results_html likely does not match all row layouts on lottery.co.uk/lotto/results/past (main_cls 'lotto-ball-round-1' or the smallerHeading anchor variant). With only 10 draws, hot/cold/overdue statistics are degenerate (all Hot values show 30% because many numbers tied)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard Overdue card", "issues": ["Values render with 'd' suffix (e.g. '10d') but represent 'draws ago', not days. Suffix is misleading; should read '10 draws' or drop the suffix."]},
+      {"screen": "Dashboard Hot card (Lotto)", "issues": ["All items show 30% because only 10 draws exist for lotto (see backend minor issue). Not a UI bug but a downstream symptom."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix lottery.co.uk lotto scraper regex so full ~52 recent draws are captured for UK National Lottery (compare with euromillions parsing which works). This also fixes the degenerate Hot/Cold statistics on the lotto dashboard.",
+    "Change 'draws_ago' rendering suffix in StatCard from 'Nd' to 'N draws' (or 'Nx') to avoid the day/draw confusion in the Overdue card."
+  ],
+  "critical_code_review_comments": [
+    "auth.py set_auth_cookies uses secure=False. Fine for local dev but should be secure=True in production (cookies are sent over HTTPS on preview). Consider env-driven flag.",
+    "lottery.py refresh_game deletes all draws and re-inserts on every startup+ensure_data call cycle only when count is 0; that's fine, but there is no periodic refresh. Add scheduler or admin-triggered refresh (POST /api/refresh/{game} exists but is not auth-protected).",
+    "POST /api/refresh/{game} has no auth guard — any anonymous user can force a full re-scrape/insert. Should require admin.",
+    "predict_ai catches all exceptions and silently falls back to statistical. Good UX, but log the exception with stacktrace to aid diagnosis (currently only logs message).",
+    "save_prediction accepts arbitrary dict payload without Pydantic validation — no schema enforcement on game/method/main_numbers ranges. Add a Pydantic model.",
+    "CORS allow_origins uses os.environ.get('FRONTEND_URL', 'http://localhost:3000'); CORS_ORIGINS env exists but is unused."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (new)"
+  ],
+  "success_rate": {"backend": "100% (21/21)", "frontend": "100% of covered flows"},
+  "test_credentials": "admin@lottopredict.app / admin123 (worked). Tests also register a fresh test_user_<uuid>@lottopredict.app / Passw0rd! per run.",
+  "seed_data_creation": "Each pytest run registers 1-2 disposable users via /api/auth/register. Not cleaned up; they remain in test_database.users. Consider a teardown to remove TEST_/test_ prefixed users.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend fully tested with pytest at /app/backend/tests/backend_test.py — run with: cd /app && pytest backend/tests/backend_test.py -v --junitxml=/app/test_reports/pytest/pytest_results.xml. Real AI (Emergent LLM gpt-5.4) call verified working. Only real issue is scraper only returning 10 lotto draws — likely regex mismatch in lottery._parse_results_html for lotto's newer row markup on lottery.co.uk.",
+  "rca of the issue": "Lotto draw count of 10 (vs 52 for euromillions): _parse_results_html uses row_re that requires class='smallerHeading' anchor pattern. lottery.co.uk may have restructured the lotto listing (or lotto page uses a mix of a different anchor class for the majority of older rows). Repro: curl -s https://www.lottery.co.uk/lotto/results/past | grep -c 'smallerHeading' vs the same for /euromillions/results/past. Mitigation: broaden anchor detection or use a HTML parser (BeautifulSoup) with class~=smallerHeading and iterate lotto-ball-round-N classes (round-1..round-6 rather than just round-1)."
+}
