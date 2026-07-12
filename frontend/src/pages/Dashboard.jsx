@@ -38,7 +38,7 @@ const StatCard = ({ icon: Icon, title, color, items, testid }) => (
             {n.number}
           </div>
           <span className="text-[10px] text-muted-foreground mt-1 font-mono">
-            {title === "Overdue" ? `${n.draws_ago}d` : `${n.percentage}%`}
+            {title === "Overdue" ? `${n.draws_ago}×` : `${n.percentage}%`}
           </span>
         </div>
       ))}

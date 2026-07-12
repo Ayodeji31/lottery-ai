@@ -21,8 +21,8 @@ GAMES = {
     "lotto": {
         "name": "UK National Lottery",
         "url": "https://www.lottery.co.uk/lotto/results/past",
-        "main_cls": "lotto-ball-round-1",
-        "bonus_cls": "lotto-bonus-ball-round-1",
+        "main_cls": "lotto-ball",
+        "bonus_cls": "lotto-bonus-ball",
         "main_count": 6,
         "main_max": 59,
         "bonus_count": 1,
@@ -170,7 +170,9 @@ def compute_stats(draws, cfg):
 
 
 @lottery_router.post("/refresh/{game}")
-async def refresh(game: str):
+async def refresh(game: str, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
     if game not in GAMES:
         raise HTTPException(status_code=404, detail="Unknown game")
     count = await refresh_game(game)
