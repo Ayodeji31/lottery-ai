@@ -115,7 +115,7 @@ export default function Dashboard() {
             className="lg:col-span-8 rounded-3xl border border-white/10 bg-card/80 p-6 sm:p-8 relative overflow-hidden"
             data-testid="predictor-card"
           >
-            <div className="absolute -top-32 -right-32 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" aria-hidden="true" />
+            <div className="absolute -top-32 -right-32 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" aria-hidden="true" />
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
               <div>
                 <p className="font-mono text-xs uppercase tracking-widest text-sky-300">Generate</p>

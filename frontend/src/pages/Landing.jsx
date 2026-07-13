@@ -108,7 +108,7 @@ export default function Landing() {
             transition={{ duration: 0.7, delay: 0.2 }}
             className="relative rounded-3xl border border-white/10 bg-card/80 backdrop-blur-xl p-8 overflow-hidden"
           >
-            <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-sky-500/20 blur-3xl" aria-hidden="true" />
+            <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-sky-500/20 blur-3xl pointer-events-none" aria-hidden="true" />
             <p className="font-mono text-xs uppercase tracking-widest text-sky-300 mb-1">AI Suggested Set</p>
             <p className="font-heading text-xl font-bold mb-6">EuroMillions</p>
             <div className="space-y-5">

@@ -47,7 +47,7 @@ export default function Auth() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md rounded-3xl border border-white/10 bg-card/80 backdrop-blur-xl p-8 relative overflow-hidden"
       >
-        <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-sky-500/20 blur-3xl" aria-hidden="true" />
+        <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-sky-500/20 blur-3xl pointer-events-none" aria-hidden="true" />
         <div className="flex items-center gap-2 mb-8">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-400 to-sky-600 flex items-center justify-center shadow-[0_0_16px_rgba(14,165,233,0.5)]">
             <Sparkles className="h-5 w-5 text-white" aria-hidden="true" />
