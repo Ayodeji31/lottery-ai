@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Navbar } from "@/components/Navbar";
 import { BallRow } from "@/components/LotteryBall";
 import { Button } from "@/components/ui/button";
+import { useLotteryData } from "@/hooks/useLotteryData";
 import api, { formatApiError } from "@/lib/api";
 
 const GameToggle = ({ games, active, onChange }) => (
@@ -47,26 +48,15 @@ const StatCard = ({ icon: Icon, title, color, items, testid }) => (
 );
 
 export default function Dashboard() {
-  const [games, setGames] = useState([]);
   const [active, setActive] = useState("lotto");
-  const [stats, setStats] = useState(null);
-  const [draws, setDraws] = useState([]);
+  const { games, stats, draws } = useLotteryData(active);
   const [preds, setPreds] = useState(null);
   const [summary, setSummary] = useState("");
   const [method, setMethod] = useState("");
   const [loadingPred, setLoadingPred] = useState("");
 
   useEffect(() => {
-    api.get("/games").then((r) => setGames(r.data));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    setStats(null);
-    setDraws([]);
     setPreds(null);
-    api.get(`/stats/${active}`).then((r) => setStats(r.data));
-    api.get(`/draws/${active}?limit=15`).then((r) => setDraws(r.data));
   }, [active]);
 
   const generate = async (kind) => {

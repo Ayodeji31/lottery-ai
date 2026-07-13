@@ -1,0 +1,42 @@
+{
+  "summary": "Post-refactor regression run. Backend pytest 28/28 pass (~8s). Frontend E2E: signup creates account, redirects to /dashboard, no auth-error, lotto_token (len 227) stored in localStorage, session persists on reload. Admin login (admin@lottopredict.app/admin123) works. Dashboard via new useLotteryData hook: games toggle switches lotto<->euromillions and reloads stats+draws, previous predictions cleared on game switch (verified: 3 sets -> 0 sets + predictor-empty state shown), hot/cold/overdue + frequency chart + recent draws render for both games (15 draws each shown - frontend requests limit=15, backend has 52). Statistical predict returns 3 sets; save persists; /saved page (SavedItem) lists items and delete removes them. Landing FeatureGrid renders hero + 3 feature cards (Statistical Engine, AI Predictions, Real Draw Data). Mobile 390x844: 0px horizontal overflow on /, /auth, /dashboard, /saved. FOUND ONE REGRESSION-STYLE UI BUG: decorative blur <div> in Dashboard.jsx line 118 intercepts pointer events over the 'AI Predict' button (elementFromPoint at button center returns the blur div, not the button). Statistical button unaffected. Any normal user click on AI Predict is blocked - only force=True clicks work in Playwright.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Dashboard.jsx (predictor-card)",
+        "issue": "Decorative absolute blur div (line 118: '<div class=\"absolute -top-32 -right-32 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl\" aria-hidden=\"true\" />') intercepts pointer events on the AI Predict button. Playwright confirms document.elementFromPoint at center of [data-testid=generate-ai] returns the blur div. Real user clicks on 'AI Predict' will not fire the handler. Fix: add pointer-events-none to the decorative div.",
+        "selector": "[data-testid=\"generate-ai\"]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Auth.jsx / Landing.jsx", "issues": ["Same pattern (decorative blur absolute div without pointer-events-none) exists in Auth.jsx line 50 and Landing.jsx line 111. Currently harmless (no interactive element under overlap), but same class should get pointer-events-none for defensive consistency."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Add `pointer-events-none` to the decorative blur <div>s in Dashboard.jsx (line 118), Auth.jsx (line 50), and Landing.jsx (line 111). Only the Dashboard one is user-blocking (AI Predict button), the other two are defensive."
+  ],
+  "critical_code_review_comments": [
+    "useLotteryData hook: correct behavior. Sets stats=null and draws=[] on active change (before fetch), preventing stale data flash. Uses cancelled flag for /games unmount. Effect deps [active, loadGame] are correct since loadGame is memoized with useCallback([]) - stable across renders.",
+    "Dashboard.jsx has a separate `useEffect(()=>setPreds(null), [active])` to reset predictions on game switch. Works, but the reset is not colocated with the hook. Consider returning a resetPreds callback from useLotteryData or moving preds state into the hook.",
+    "SavedItem.jsx: clean extraction, keeps testids stable (saved-item-<id>, delete-saved-<id>).",
+    "Auth.jsx getSubmitLabel() correctly replaces the nested ternary and is more readable.",
+    "AuthContext catch blocks now console.error - good for debugging; token logic unchanged from previous verified fix (still uses localStorage 'lotto_token' + Bearer header).",
+    "PRE-EXISTING: backend_test.py still hard-codes fallback BASE_URL (line 12). Should raise if REACT_APP_BACKEND_URL is unset per env policy.",
+    "PRE-EXISTING: PWA sw.js served but not registered in index.html - offline caching inactive."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (28/28)", "frontend": "95% - all flows work; AI Predict button click intercepted by decorative overlay (normal click fails, force=True works)"},
+  "test_credentials": "admin@lottopredict.app / admin123 confirmed working. Fresh signup emails per run.",
+  "seed_data_creation": "Registered ~2 disposable users; created 3 saved predictions during flow (1 AI + statistical), deleted 1 via UI, remaining 2 in admin's saved list at end of run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent adds `pointer-events-none` to decorative blur divs, re-verify AI Predict button click works WITHOUT force=True. Test flow: login as admin -> /dashboard -> click generate-ai (normal click) -> wait ~30-60s -> expect prediction-set-0..N. All 28 backend tests + all other frontend flows currently green - no re-test needed for those unless another refactor lands. Testids in play: auth-toggle-mode, auth-name-input, auth-email-input, auth-password-input, auth-submit, auth-error, game-toggle, game-tab-lotto, game-tab-euromillions, stat-hot, stat-cold, stat-overdue, frequency-chart, recent-draws, draw-row-<n>, predictor-empty, predictor-card, generate-statistical, generate-ai, prediction-set-<i>, save-prediction-<i>, saved-item-<id>, delete-saved-<id>, hero-get-started, header-signin.",
+  "rca of the issue": "Cause: Decorative sky-blue blur circle (`bg-sky-500/10 blur-3xl`) is absolutely positioned at `-top-32 -right-32` inside the predictor-card, and the h-72 w-72 (288x288) blur radius extends into the button strip in the top-right of the card. Because the div has no `pointer-events-none`, it sits on top of the 'AI Predict' button (which is the right-most button in the top-right cluster). Reproduction: 1) Open /dashboard 2) Click 'AI Predict' - nothing happens 3) `document.elementFromPoint(x, y)` at button center returns the blur div. Mitigation: add `pointer-events-none` class (Tailwind) to that decorative div. Same treatment should be applied to Auth.jsx line 50 and Landing.jsx line 111 as defensive hygiene, though those two do not currently overlap any interactive element."
+}

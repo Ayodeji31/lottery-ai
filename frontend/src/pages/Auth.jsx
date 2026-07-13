@@ -33,11 +33,11 @@ export default function Auth() {
     }
   };
 
-  const submitLabel = loading
-    ? "Please wait…"
-    : mode === "login"
-      ? "Sign in"
-      : "Create account";
+  const getSubmitLabel = () => {
+    if (loading) return "Please wait…";
+    return mode === "login" ? "Sign in" : "Create account";
+  };
+  const submitLabel = getSubmitLabel();
 
   return (
     <div className="min-h-screen grid-bg flex items-center justify-center px-4 py-12">

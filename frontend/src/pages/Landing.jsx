@@ -12,6 +12,30 @@ const features = [
   { icon: ShieldCheck, title: "Real Draw Data", desc: "Live UK Lotto & EuroMillions results scraped from official history." },
 ];
 
+const FeatureGrid = () => (
+  <div className="grid sm:grid-cols-3 gap-4 mt-20">
+    {features.map((f, i) => {
+      const Icon = f.icon;
+      return (
+        <motion.div
+          key={f.title}
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: i * 0.1 }}
+          className="rounded-2xl border border-white/10 bg-card/60 p-6"
+        >
+          <div className="h-11 w-11 rounded-xl bg-primary/15 flex items-center justify-center mb-4">
+            <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
+          </div>
+          <h3 className="font-heading font-semibold text-lg mb-2">{f.title}</h3>
+          <p className="text-sm text-muted-foreground">{f.desc}</p>
+        </motion.div>
+      );
+    })}
+  </div>
+);
+
 export default function Landing() {
   const { user } = useAuth();
   const cta = user ? "/dashboard" : "/auth";
@@ -98,27 +122,7 @@ export default function Landing() {
           </motion.div>
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-4 mt-20">
-          {features.map((f, i) => {
-            const Icon = f.icon;
-            return (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
-                className="rounded-2xl border border-white/10 bg-card/60 p-6"
-              >
-                <div className="h-11 w-11 rounded-xl bg-primary/15 flex items-center justify-center mb-4">
-                  <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
-                </div>
-                <h3 className="font-heading font-semibold text-lg mb-2">{f.title}</h3>
-                <p className="text-sm text-muted-foreground">{f.desc}</p>
-              </motion.div>
-            );
-          })}
-        </div>
+        <FeatureGrid />
       </section>
 
       <footer className="border-t border-white/10 py-8 text-center text-sm text-muted-foreground">

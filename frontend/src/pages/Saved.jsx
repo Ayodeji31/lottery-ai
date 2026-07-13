@@ -1,13 +1,9 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { motion } from "framer-motion";
-import { Trash2, Bookmark, Brain, Calculator } from "lucide-react";
+import { Bookmark } from "lucide-react";
 import { toast } from "sonner";
 import { Navbar } from "@/components/Navbar";
-import { BallRow } from "@/components/LotteryBall";
-import { Button } from "@/components/ui/button";
+import { SavedItem } from "@/components/SavedItem";
 import api, { formatApiError } from "@/lib/api";
-
-const gameName = (g) => (g === "lotto" ? "UK Lotto" : "EuroMillions");
 
 export default function Saved() {
   const [items, setItems] = useState(null);
@@ -46,37 +42,7 @@ export default function Saved() {
 
         <div className="space-y-3" data-testid="saved-list">
           {items?.map((it, i) => (
-            <motion.div
-              key={it.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="rounded-2xl border border-white/10 bg-card/60 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-              data-testid={`saved-item-${it.id}`}
-            >
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/15 text-primary">
-                    {gameName(it.game)}
-                  </span>
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    {it.method === "ai" ? <Brain className="h-3 w-3" /> : <Calculator className="h-3 w-3" />}
-                    {it.method}
-                  </span>
-                </div>
-                <BallRow main={it.main_numbers} bonus={it.bonus_numbers} size="md" animate={false} />
-                {it.reasoning && <p className="text-xs text-muted-foreground mt-2 max-w-md">{it.reasoning}</p>}
-              </div>
-              <Button
-                data-testid={`delete-saved-${it.id}`}
-                variant="ghost"
-                size="icon"
-                onClick={() => remove(it.id)}
-                className="rounded-full text-muted-foreground hover:text-destructive self-end sm:self-auto"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </motion.div>
+            <SavedItem key={it.id} item={it} index={i} onDelete={remove} />
           ))}
         </div>
       </main>

@@ -16,7 +16,8 @@ export const AuthProvider = ({ children }) => {
     api
       .get("/auth/me")
       .then((r) => setUser(r.data))
-      .catch(() => {
+      .catch((err) => {
+        console.error("Session check failed:", err);
         setAuthToken(null);
         setUser(false);
       })
@@ -42,8 +43,8 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await api.post("/auth/logout");
-    } catch (e) {
-      /* ignore */
+    } catch (err) {
+      console.error("Logout request failed:", err);
     }
     setAuthToken(null);
     setUser(false);
