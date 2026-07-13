@@ -21,9 +21,11 @@ app = FastAPI(title="LottoPredict API")
 app.include_router(auth_router)
 app.include_router(lottery_router)
 
+cors_origins = os.environ.get("CORS_ORIGINS", "*").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000"), "http://localhost:3000"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
