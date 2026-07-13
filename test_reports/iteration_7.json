@@ -1,0 +1,25 @@
+{
+  "summary": "Verified new password eye toggle on /auth and full signup->logout->login flow after the reported 'Something went wrong' bug. Backend 28/28 pytest green. Frontend: password toggle switches auth-password-input type password<->text without altering the value and icon changes (Eye/EyeOff). Fresh signup (test_ui_<ts>@lottopredict.app) lands on /dashboard, lotto_token stored (len=232). Logout clears token. Re-login with same email+password reaches /dashboard with 0 auth-error nodes. Invalid password shows 'Invalid email or password' in data-testid=auth-error and keeps user on /auth (no crash). Admin login admin@lottopredict.app/admin123 succeeds. Regression: statistical predict returns 3 sets, save works, /saved page lists items.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Auth.jsx password toggle button correctly uses type='button' so it does not submit the form on click - good.",
+    "Toggle button aria-label switches between 'Show password' and 'Hide password' - accessible.",
+    "submit() now cleanly distinguishes network (no err.response), 5xx server-busy, and 4xx cases via formatApiError; 401 login now surfaces 'Invalid email or password' instead of the previous 'Something went wrong' - verified in browser.",
+    "Pre-existing (not introduced this iteration): backend_test.py line 12 keeps a hardcoded fallback for REACT_APP_BACKEND_URL contrary to env policy. CORS_ORIGINS='*' + allow_credentials=True still a spec violation but Bearer-token flow works.",
+    "Minor: 'game-toggle-lotto' data-testid was not present on the dashboard during this run (0 elements found). Lotto is the default game so it didn't affect the regression, but if a future test depends on the toggle testid, main agent should verify Dashboard.jsx exposes game-toggle-lotto / game-toggle-euromillions consistently."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (28/28 pytest)", "frontend": "100% (password toggle, signup, logout, re-login, invalid-pwd error, admin login, statistical predict + save + /saved all pass)"},
+  "test_credentials": "admin@lottopredict.app / admin123 verified; fresh signup user test_ui_1783954942@lottopredict.app created and re-authenticated successfully.",
+  "seed_data_creation": "One signup user + a couple of statistical saved predictions on the shared admin account (leftover from prior runs still visible; not cleaned up in this iteration).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Password visibility toggle uses data-testid=toggle-password-visibility, is a <button type='button'> so form doesn't submit on click. Auth.jsx submit() error mapping: no response -> 'Can't reach the server', 5xx -> 'server is busy/waking up', 4xx (401 login) -> formatApiError(detail) which renders 'Invalid email or password'. Signup + re-login flow is stable end-to-end via external URL; the earlier 'Something went wrong' was a transient 502 backend-restart window. Only nit: dashboard game-toggle-lotto testid was not found in DOM during this run (lotto is default so tests still work).",
+  "rca of the issue": "The reported 'signup then can't login -> Something went wrong' was a transient 502 during backend restart, confirmed resolved: (a) backend pytest 28/28 green including test_login_returns_access_token and test_bearer_only_me_no_cookies, (b) end-to-end Playwright signup->logout->login with a fresh unique account lands on /dashboard with lotto_token set and zero auth-error nodes, (c) invalid password path now surfaces 'Invalid email or password' via the improved formatApiError path instead of the generic 'Something went wrong'."
+}

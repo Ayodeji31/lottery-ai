@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ export default function Auth() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { login, register } = useAuth();
@@ -27,7 +28,15 @@ export default function Auth() {
       else await register(name, email, password);
       navigate("/dashboard");
     } catch (err) {
-      setError(formatApiError(err.response?.data?.detail) || err.message);
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail;
+      if (!err.response) {
+        setError("Can't reach the server. Please check your connection and try again.");
+      } else if (status >= 500) {
+        setError("The server is busy or waking up. Please wait a moment and try again.");
+      } else {
+        setError(formatApiError(detail) || "Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -90,15 +99,27 @@ export default function Auth() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              data-testid="auth-password-input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                data-testid="auth-password-input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="pr-11"
+              />
+              <button
+                type="button"
+                data-testid="toggle-password-visibility"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           {error && (
