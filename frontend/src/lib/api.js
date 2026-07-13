@@ -29,6 +29,29 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Auto-retry transient failures (preview cold-starts / gateway blips) so requests self-heal
+const MAX_RETRIES = 4;
+const RETRY_DELAY_MS = 2500;
+const isTransient = (error) => {
+  if (!error.response) return true; // network error / server unreachable
+  return [502, 503, 504].includes(error.response.status);
+};
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error.config;
+    if (!config || config.method === "delete") return Promise.reject(error);
+    config._retryCount = config._retryCount || 0;
+    if (isTransient(error) && config._retryCount < MAX_RETRIES) {
+      config._retryCount += 1;
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      return api(config);
+    }
+    return Promise.reject(error);
+  }
+);
+
 export function formatApiError(detail) {
   if (detail == null) return "Something went wrong. Please try again.";
   if (typeof detail === "string") return detail;
