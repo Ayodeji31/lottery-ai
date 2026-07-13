@@ -1,0 +1,23 @@
+{
+  "summary": "Regression re-test after deployment-readiness fixes (CORS reads CORS_ORIGINS env; /api/saved list capped at .limit(100)). Backend 28/28 pytest green. Frontend full flow green: signup -> /dashboard, lotto_token in localStorage (len=232), session persists on hard reload, game toggle lotto<->euromillions loads data, Statistical + AI predict render 3 sets each, save -> /saved -> delete works. Admin login (admin@lottopredict.app/admin123) succeeds. Zero console errors and zero CORS errors observed on /api/auth/me, /api/auth/login, /api/games during the full run. No regressions from CORS/limit changes.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CORS_ORIGINS='*' combined with allow_credentials=True is a spec violation. Browsers will still work for Bearer-token flows (used by this app via localStorage), but any cookie-based cross-origin request would silently fail. Recommend setting CORS_ORIGINS to the explicit FRONTEND_URL for production deployments.",
+    "backend_test.py still keeps a hardcoded fallback URL in BASE_URL (line 12); per env policy this should raise when REACT_APP_BACKEND_URL is unset. Pre-existing minor issue, not introduced by this iteration.",
+    "PWA sw.js served but not registered in index.html - pre-existing, no regression."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (28/28 pytest)", "frontend": "100% (signup, session-persist, toggle, statistical, AI, save, /saved, delete, admin login all pass)"},
+  "test_credentials": "admin@lottopredict.app / admin123 verified working; test users are created ad-hoc via signup.",
+  "seed_data_creation": "One ad-hoc signup user test_ui_<ts>@lottopredict.app created and used; saved item created then deleted (net zero).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "CORS + saved-limit deployment fixes are non-breaking. Reusable testids on dashboard: generate-statistical, generate-ai, prediction-set-<i>, save-prediction-<i>, game-toggle-lotto, game-toggle-euromillions; on /saved: saved-item-<id>, delete-saved-<id>; on /auth: auth-name-input, auth-email-input, auth-password-input, auth-submit and a 'Sign up' inline link (not a tab) toggles register mode. Backend pytest.ini enables xdist -> occasional shared-fixture ordering flakiness in TestAuth::test_register_duplicate; passes on re-run. AI predict may hit ingress 502 (Cloudflare) when LLM latency spikes; retry.",
+  "rca of the issue": "N/A - no regression found. Two initial pytest failures were transient: (1) TestPredictions::test_ai returned Cloudflare 502 (upstream/ingress hiccup during LLM latency) and (2) TestAuth::test_register_duplicate flaked due to pytest-xdist scheduling of session-scoped registered_user fixture. Both passed cleanly on immediate re-run without any code changes."
+}

@@ -335,7 +335,7 @@ async def save_prediction(payload: SavedPredictionInput, user: dict = Depends(ge
 async def list_saved(user: dict = Depends(get_current_user)):
     items = await db.saved_predictions.find(
         {"user_id": str(user["_id"])}, {"_id": 0}
-    ).sort("created_at", -1).to_list(length=None)
+    ).sort("created_at", -1).limit(100).to_list(length=100)
     return items
 
 
