@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Sparkles, LayoutDashboard, Bookmark, LogOut, Crown, Target } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export const Navbar = () => {
   const { user, logout } = useAuth();
@@ -32,6 +33,7 @@ export const Navbar = () => {
 
         {user && (
           <nav className="flex items-center gap-1 sm:gap-2">
+            <NotificationBell />
             {user.is_pro ? (
               <span
                 data-testid="pro-badge"

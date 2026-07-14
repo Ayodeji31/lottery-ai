@@ -3,12 +3,14 @@ import re
 import json
 import uuid
 import random
+import asyncio
 import logging
 from collections import Counter
 from datetime import datetime, timezone
 
 import requests
 from typing import List
+from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 
@@ -17,6 +19,7 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 logger = logging.getLogger(__name__)
 lottery_router = APIRouter(prefix="/api", tags=["lottery"])
+REFRESH_INTERVAL_HOURS = 6
 
 GAMES = {
     "lotto": {
@@ -95,22 +98,92 @@ def _generate_sample(game: str, count: int = 200):
     return draws
 
 
-async def refresh_game(game: str):
+BL = {
+    "lotto": {"slug": "lotto", "main": "ball-lotto", "bonus": "ball-bonus"},
+    "euromillions": {"slug": "euromillions", "main": "ball-euromillions",
+                     "bonus": "ball-euromillions-lucky-star"},
+}
+BL_TOKEN = re.compile(
+    r'<span\s+class="results_ball_new([^"]*)">\s*(\d{1,2})\s*</span>'
+    r'|/(?:lotto|euromillions)/results/draw_date/(\d{4}-\d{2}-\d{2})'
+)
+
+
+def _parse_beatlottery(html: str, game: str):
     cfg = GAMES[game]
-    parsed = []
+    bl = BL[game]
+    results, cur_main, cur_bonus = [], [], []
+    for m in BL_TOKEN.finditer(html):
+        classes, num, date = m.group(1), m.group(2), m.group(3)
+        if date is not None:
+            if len(cur_main) >= cfg["main_count"]:
+                results.append({
+                    "game": game,
+                    "draw_number": date.replace("-", ""),
+                    "draw_date": date,
+                    "main_numbers": cur_main[: cfg["main_count"]],
+                    "bonus_numbers": cur_bonus[: cfg["bonus_count"]],
+                })
+            cur_main, cur_bonus = [], []
+        elif num is not None:
+            n = int(num)
+            if bl["bonus"] in classes:
+                cur_bonus.append(n)
+            elif bl["main"] in classes:
+                cur_main.append(n)
+    return results
+
+
+def _scrape_game(game: str):
+    """Primary: beatlottery.co.uk year pages. Fallback: lottery.co.uk."""
+    cfg = GAMES[game]
+    year = datetime.now(timezone.utc).year
+    draws = []
+    for y in (year, year - 1):
+        url = f"https://www.beatlottery.co.uk/{BL[game]['slug']}/draw-history/year/{y}"
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=25)
+            r.raise_for_status()
+            draws += _parse_beatlottery(r.text, game)
+        except Exception as e:
+            logger.warning(f"beatlottery {game} {y} failed: {e}")
+        if len(draws) >= 60:
+            break
+    if draws:
+        seen, unique = set(), []
+        for d in draws:
+            if d["draw_number"] not in seen:
+                seen.add(d["draw_number"])
+                unique.append(d)
+        return unique
     try:
-        resp = requests.get(cfg["url"], headers=HEADERS, timeout=25)
-        resp.raise_for_status()
-        parsed = _parse_results_html(resp.text, game, cfg)
+        r = requests.get(cfg["url"], headers=HEADERS, timeout=25)
+        r.raise_for_status()
+        return _parse_results_html(r.text, game, cfg)
     except Exception as e:
-        logger.warning(f"Failed to fetch {game} data: {e}")
+        logger.warning(f"lottery.co.uk {game} fallback failed: {e}")
+    return []
+
+
+async def refresh_game(game: str):
+    parsed = _scrape_game(game)
+
+    existing = await db.draws.find({"game": game}, {"draw_number": 1, "_id": 0}).to_list(length=None)
+    existing_numbers = {d["draw_number"] for d in existing}
+
     if not parsed:
-        logger.warning(f"Using generated sample data for {game}")
-        parsed = _generate_sample(game)
+        # Scrape failed: keep real data if we have it; only seed sample into an empty DB.
+        if existing_numbers:
+            logger.warning(f"Scrape failed for {game}; keeping {len(existing_numbers)} existing draws")
+            return []
+        logger.warning(f"Seeding generated sample data for {game} (empty DB)")
+        await db.draws.insert_many([{**d} for d in _generate_sample(game)])
+        return []
+
+    new_draws = [d for d in parsed if d["draw_number"] not in existing_numbers]
     await db.draws.delete_many({"game": game})
-    if parsed:
-        await db.draws.insert_many([{**d} for d in parsed])
-    return len(parsed)
+    await db.draws.insert_many([{**d} for d in parsed])
+    return new_draws
 
 
 async def ensure_data():
@@ -125,6 +198,76 @@ async def _get_draws(game: str, limit: int = 0):
     if limit:
         cursor = cursor.limit(limit)
     return await cursor.to_list(length=None)
+
+
+async def _notify_new_draw(game: str, draw: dict) -> int:
+    """Create 'you won a prize' notifications for Pro users whose saved sets hit a tier."""
+    created = 0
+    cfg = GAMES[game]
+    saved = await db.saved_predictions.find({"game": game}).to_list(length=None)
+    pro_cache = {}
+    for pred in saved:
+        uid = pred["user_id"]
+        if uid not in pro_cache:
+            try:
+                u = await db.users.find_one({"_id": ObjectId(uid)})
+            except Exception:
+                u = None
+            pro_cache[uid] = bool(u) and user_is_pro(u)
+        if not pro_cache[uid]:
+            continue
+        m = len(set(pred.get("main_numbers", [])) & set(draw["main_numbers"]))
+        b = len(set(pred.get("bonus_numbers", [])) & set(draw.get("bonus_numbers", [])))
+        prize = _prize_tier(game, m, b)
+        if not prize:
+            continue
+        dedup = {"user_id": uid, "prediction_id": pred["id"], "draw_number": draw["draw_number"]}
+        if await db.notifications.find_one(dedup):
+            continue
+        await db.notifications.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": uid,
+            "prediction_id": pred["id"],
+            "type": "prize",
+            "game": game,
+            "draw_number": draw["draw_number"],
+            "draw_date": draw["draw_date"],
+            "prize": prize,
+            "main_matched": m,
+            "bonus_matched": b,
+            "title": f"You would have won — {prize}!",
+            "body": f"Your saved {cfg['name']} set matched {m} number{'s' if m != 1 else ''}"
+                    + (f" + {b} bonus" if b else "") + f" in the {draw['draw_date']} draw.",
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        created += 1
+    return created
+
+
+async def refresh_and_notify():
+    total_new, total_notif = 0, 0
+    for game in GAMES:
+        new_draws = await refresh_game(game)
+        for d in new_draws:
+            total_notif += await _notify_new_draw(game, d)
+        total_new += len(new_draws)
+    await db.meta.update_one(
+        {"_id": "draws"},
+        {"$set": {"last_refresh": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    logger.info(f"refresh_and_notify: {total_new} new draws, {total_notif} notifications")
+    return total_new, total_notif
+
+
+async def refresh_scheduler():
+    while True:
+        await asyncio.sleep(REFRESH_INTERVAL_HOURS * 3600)
+        try:
+            await refresh_and_notify()
+        except Exception:
+            logger.warning("Scheduled refresh failed", exc_info=True)
 
 
 def compute_stats(draws, cfg):
@@ -176,8 +319,19 @@ async def refresh(game: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin only")
     if game not in GAMES:
         raise HTTPException(status_code=404, detail="Unknown game")
-    count = await refresh_game(game)
-    return {"game": game, "draws_loaded": count}
+    new_draws = await refresh_game(game)
+    notif = 0
+    for d in new_draws:
+        notif += await _notify_new_draw(game, d)
+    return {"game": game, "new_draws": len(new_draws), "notifications_created": notif}
+
+
+@lottery_router.post("/admin/refresh-now")
+async def admin_refresh_now(user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    total_new, total_notif = await refresh_and_notify()
+    return {"new_draws": total_new, "notifications_created": total_notif}
 
 
 @lottery_router.get("/games")
@@ -481,3 +635,33 @@ async def accuracy(user: dict = Depends(get_current_user)):
         "best_ever": best_ever,
     }
     return {"summary": summary, "predictions": results}
+
+
+# ---------- Notifications ----------
+@lottery_router.get("/notifications")
+async def list_notifications(user: dict = Depends(get_current_user)):
+    uid = str(user["_id"])
+    items = await db.notifications.find(
+        {"user_id": uid}, {"_id": 0}
+    ).sort("created_at", -1).limit(50).to_list(length=50)
+    unread = await db.notifications.count_documents({"user_id": uid, "read": False})
+    return {"unread_count": unread, "notifications": items}
+
+
+@lottery_router.post("/notifications/{notif_id}/read")
+async def mark_notification_read(notif_id: str, user: dict = Depends(get_current_user)):
+    res = await db.notifications.update_one(
+        {"id": notif_id, "user_id": str(user["_id"])}, {"$set": {"read": True}}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"message": "ok"}
+
+
+@lottery_router.post("/notifications/read-all")
+async def mark_all_read(user: dict = Depends(get_current_user)):
+    await db.notifications.update_many(
+        {"user_id": str(user["_id"]), "read": False}, {"$set": {"read": True}}
+    )
+    return {"message": "ok"}
+

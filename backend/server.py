@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from auth import auth_router, seed_admin, db
-from lottery import lottery_router, ensure_data
+from lottery import lottery_router, ensure_data, refresh_scheduler
 from payments import payments_router, webhook_router
 
 logging.basicConfig(level=logging.INFO,
@@ -42,8 +42,10 @@ async def root():
 
 @app.on_event("startup")
 async def startup():
+    import asyncio
     await seed_admin()
     await ensure_data()
+    asyncio.create_task(refresh_scheduler())
     logger.info("Startup complete")
 
 

@@ -1,0 +1,40 @@
+{
+  "summary": "End-to-end verification of LottoLuck AI auto-draw-refresh + Pro-only prize notifications. Backend: 64/64 pytest passing (16 new notification tests + 48 regression). Data integrity confirmed (150+ real draws for both games, no 'sample' flag, latest lotto=2026-07-11 [9,13,22,36,40,45]+[41], latest euromillions=2026-07-10 [2,14,28,33,48]+[8,10]). Full notification flow verified: delete latest lotto draw -> POST /api/admin/refresh-now -> new_draws=1 (NOT hundreds -- sample-flood regression guard passes) -> exactly ONE Jackpot notification for the Pro user with matching set, ZERO for the non-matching set, ZERO for the Free user with the same matching set. Idempotency: repeat /admin/refresh-now creates 0 new notifications. Endpoints require auth (401 anon), mark-one-read works, unknown id -> 404, mark-all-read clears unread. Frontend: NotificationBell (bell + amber badge=1) renders in nav for authenticated user; opening popover shows Trophy + 'You would have won -- Jackpot!' title matching real draw 2026-07-11; clicking item marks it read, badge disappears, navigation goes to /accuracy, mark-all-read control hides when unread=0; empty state shown for free user with no notifications.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_notifications.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_payments_and_gating.py",
+    "/app/backend/tests/test_accuracy.py",
+    "/app/test_reports/pytest/pytest_notifications.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "lottery.py refresh_game: fix verified -- on scrape failure with existing draws it returns [] and keeps DB intact; only seeds sample into an empty DB. This is the exact fix for the previous sample-data-flood bug.",
+    "lottery.py _notify_new_draw: dedup by {user_id, prediction_id, draw_number} works correctly (idempotency test passes). Pro-cache per refresh call avoids per-prediction re-fetches of the same user.",
+    "lottery.py _notify_new_draw: pro_cache lookup uses ObjectId(uid) inside try/except -- safe against corrupt user_id strings. Skips silently if user missing.",
+    "lottery.py /admin/refresh-now correctly gated to role=admin (403 otherwise). No auth -> 401 via Depends(get_current_user). Both verified.",
+    "NotificationBell.jsx: polling every 60s is fine; setInterval cleared on unmount. openItem awaits mark-read before navigate/reload which keeps badge in sync. Empty state has data-testid=notification-empty; item testids are notification-item-<id>; mark-all-read only rendered when unread>0 -- matches spec exactly.",
+    "Navbar.jsx: NotificationBell only rendered when user is authenticated (guarded by {user && ...}). Good.",
+    "Nit (non-blocking): NotificationBell.jsx swallows all api errors with .catch(() => {}). If /notifications 500s the bell silently shows unread=0 with no visible failure. Consider surfacing at least a console.warn or a small error indicator.",
+    "Nit (non-blocking): lottery.py refresh_game unconditionally does delete_many + insert_many([...parsed]) on success, even when parsed is a subset of existing (e.g., beatlottery returns 60 draws while DB has 150). This preserves latest data but wipes older real draws not present in the current scrape. In this run beatlottery returned the full year so no draws were lost, but if the source ever returns a shorter window this will shrink the DB. Consider upsert-by-draw_number instead of delete_many.",
+    "lottery.py refresh_scheduler: sleeps 6h *before* first refresh -- on startup the initial ensure_data() handles first population, so this is fine. Task launched from server.py startup event and never awaited/cancelled on shutdown (acceptable for supervisor lifecycle).",
+    "Notification body uses draw_date not draw_number in the user-facing string -- good UX. draw_number YYYYMMDD is still used for dedup which is correct."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_notifications.py (new: 16 tests -- data integrity, auth, full flow, idempotency, free-user gating, mark-read variants)"
+  ],
+  "success_rate": { "backend": "100% (64/64 pytest)", "frontend": "100% (Pro user: bell+badge+panel+item+mark-read+navigate+badge-clears; Free user: empty state, no badge)" },
+  "test_credentials": "Admin admin@lottopredict.app / admin123. UI seed users this run: PRO_WITH_NOTIF=ui_notif_2dbe8d3f@lottopredict.app / Passw0rd! (pro_until +30d, 1 jackpot saved set, 1 Jackpot notification generated then marked read via UI); FREE=ui_free_292af77a@lottopredict.app / Passw0rd! (no saved sets, verifies empty state).",
+  "seed_data_creation": "Registered 2 UI test users + ~4 pytest-scoped TEST_pro_notif_*/TEST_free_notif_* users. Latest lotto draw 20260711 was deleted and re-added twice (once by pytest, once by UI seed script); DB state is fully restored to real data (verified via /api/draws/lotto returning [9,13,22,36,40,45]+[41] on 2026-07-11 as newest). All test data prefixed TEST_ or ui_*@lottopredict.app; no production data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "New endpoints: POST /api/admin/refresh-now (admin-only, returns {new_draws, notifications_created}); POST /api/refresh/{game} (admin-only, returns per-game); GET /api/notifications (auth, {unread_count, notifications:[{id, user_id, prediction_id, type:'prize', game, draw_number, draw_date, prize, main_matched, bonus_matched, title, body, read, created_at}]}); POST /api/notifications/{id}/read (auth, 404 unknown); POST /api/notifications/read-all (auth). Only Pro users receive notifications (user_is_pro helper checks pro_until iso datetime). Dedup key: {user_id, prediction_id, draw_number}. Frontend testids: notification-bell, notification-badge, notification-panel, notification-item-<id>, mark-all-read, notification-empty. Bell polls /notifications every 60s. Clicking an item marks it read then navigates to /accuracy. To simulate a new draw for notif testing: delete newest draw doc (draw_number=YYYYMMDD, e.g. '20260711') then POST /api/admin/refresh-now as admin -- beatlottery re-scrapes and re-adds it as the single new draw. Refresh scheduler runs every 6h from server startup.",
+  "rca of the issue": "N/A -- new feature verification, no bugs found. Previous sample-flood regression (new_draws=400+) is fixed and guarded by test_refresh_new_draws_is_small (asserts new_draws<=5). refresh_game keeps existing real draws on scrape failure and only seeds generated sample into an empty DB (returns [] so no notifications are created from sample data)."
+}
