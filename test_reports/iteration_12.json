@@ -1,0 +1,39 @@
+{
+  "summary": "Verified new in-app subscription management feature (Manage / Cancel / Resume Pro subscription) end-to-end. Backend: 74/74 pytest passing (10 NEW subscription tests + 64 regression from iter_11). Frontend: full Pro-user cancel->resume flip flow works with correct testids, status text, days-remaining, and sonner toasts; free-user hides manage panel and shows upgrade-checkout-btn. Zero console errors on /upgrade for both free and pro states.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_subscription.py",
+    "/app/backend/tests/test_payments_and_gating.py",
+    "/app/backend/tests/test_accuracy.py",
+    "/app/backend/tests/test_notifications.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_subscription.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "payments.py _subscription_view: correctly computes is_pro from user_is_pro helper, sets status='canceled' when auto_renew=false-but-still-pro, and 'expired'/'none' otherwise. Verified with tests.",
+    "payments.py cancel/resume: uses $set on sub-fields with dot-notation on the existing subscription doc (subscription.auto_renew, subscription.status, subscription.canceled_at) -- preserves plan/started_at/renews_at. 400 correctly returned when user has no subscription object. Verified.",
+    "payments.py _activate_pro: on paid webhook / checkout status flip, sets subscription={status:active, auto_renew:true, plan:'pro_monthly', started_at, renews_at, canceled_at:null} -- resume-after-cancel-then-repay path will correctly re-arm auto_renew. Good.",
+    "Nit (non-blocking): _subscription_view uses `datetime.fromisoformat(pro_until) - datetime.now(timezone.utc)`. If pro_until was ever stored WITHOUT a tz-suffix this would raise TypeError -- however _activate_pro always writes .isoformat() from a tz-aware datetime so this is safe in practice. try/except already covers it defensively.",
+    "Nit (non-blocking): days_remaining formula `delta.days + (1 if delta.seconds > 0 else 0)` rounds up. Test tolerates 28-31 range; UI shows '30 days left' immediately after seeding pro_until = now+30d, which matches user expectation. Fine.",
+    "Nit (non-blocking): Upgrade.jsx fetches /payments/subscription in useEffect with a silent .catch(() => {}). If /payments/subscription 500s the manage panel simply doesn't render -- consider surfacing an error toast. Acceptable since the fallback (no manage panel) still lets user re-checkout.",
+    "Upgrade.jsx: cancel/resume handlers correctly setSub(data) from the API response and then refreshUser() so both /me and /subscription state stay in sync. Toasts use sonner correctly. All required data-testids present: manage-subscription, sub-status, sub-renew-date, cancel-subscription-btn, resume-subscription-btn, upgrade-checkout-btn.",
+    "Upgrade.jsx: gate is `{user?.is_pro && sub && ...}` -- if the /me is_pro flag lags behind (e.g. right after Stripe redirect but before refreshUser) the panel briefly doesn't show. Not a bug for this feature but worth noting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_subscription.py (NEW: 10 tests -- auth, free-user shape, pro shape, cancel->resume flow, 400 on missing sub, gating still open after cancel, /me pro flag)"
+  ],
+  "success_rate": { "backend": "100% (74/74 pytest)", "frontend": "100% (Pro: manage panel + status + renew-date + cancel->resume toggle + toast; Free: no panel + upgrade-checkout-btn + pricing grid; zero console errors)" },
+  "test_credentials": "Admin admin@lottopredict.app / admin123. UI seed users this run: PRO=ui_sub_26885c99@lottopredict.app / Passw0rd! (pro_until now+30d, subscription active auto_renew=true seeded via Mongo); FREE=ui_free_26b8a050@lottopredict.app / Passw0rd!.",
+  "seed_data_creation": "Registered 2 UI test users (1 PRO seeded with subscription object in Mongo, 1 free). ~10 pytest-scoped TEST_sub_* users created (each ephemeral, no impact on production data). No draws or admin data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "In-app subscription management endpoints: GET /api/payments/subscription (auth) returns {is_pro, status:'active'|'canceled'|'expired'|'none', auto_renew, plan, pro_until, renews_at, days_remaining, price}. POST /api/payments/subscription/cancel and /resume (auth) toggle subscription.auto_renew and status; 400 if user has no subscription object; 401 anon. When cancel is called, user still has is_pro=true until pro_until expires; only auto_renew flips off. To seed a pro user via Mongo: set pro_until=iso(now+30d) and subscription={status,auto_renew,plan:'pro_monthly',started_at,renews_at,canceled_at}. Stripe test key (sk_test_emergent) works only via emergentintegrations wrapper -- no real recurring, no billing portal -- so cancel/resume is an intent flag only; each successful £4.99 checkout re-activates via _activate_pro. Frontend testids: manage-subscription, sub-status, sub-renew-date, cancel-subscription-btn, resume-subscription-btn, upgrade-checkout-btn, plan-free, plan-pro. Upgrade.jsx polls /payments/subscription on user change. All prior features (accuracy, notifications, saved CRUD, gating) still green.",
+  "rca of the issue": "N/A -- new feature verification, no bugs found. Cancel-then-resume flip verified both at API and UI level; toasts show correct copy; button switches instantly (setSub from response, no re-fetch delay)."
+}

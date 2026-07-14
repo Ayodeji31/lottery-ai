@@ -35,10 +35,53 @@ def _stripe(request: Request) -> StripeCheckout:
 
 
 async def _activate_pro(user_id: str, days: int):
-    until = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+    now = datetime.now(timezone.utc)
+    until = (now + timedelta(days=days)).isoformat()
     from bson import ObjectId
-    await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"pro_until": until}})
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {
+            "pro_until": until,
+            "subscription": {
+                "status": "active",
+                "auto_renew": True,
+                "plan": "pro_monthly",
+                "started_at": now.isoformat(),
+                "renews_at": until,
+                "canceled_at": None,
+            },
+        }},
+    )
     return until
+
+
+def _subscription_view(user: dict):
+    from auth import user_is_pro
+    sub = user.get("subscription") or {}
+    pro_until = user.get("pro_until")
+    days_remaining = 0
+    if pro_until:
+        try:
+            delta = datetime.fromisoformat(pro_until) - datetime.now(timezone.utc)
+            days_remaining = max(0, delta.days + (1 if delta.seconds > 0 else 0))
+        except (ValueError, TypeError):
+            days_remaining = 0
+    is_pro = user_is_pro(user)
+    status = "none"
+    if sub:
+        status = sub.get("status", "none")
+    if is_pro:
+        status = "canceled" if not sub.get("auto_renew", False) else "active"
+    return {
+        "is_pro": is_pro,
+        "status": status if is_pro or status == "canceled" else ("expired" if pro_until else "none"),
+        "plan": sub.get("plan", "pro_monthly"),
+        "auto_renew": bool(sub.get("auto_renew", False)) and is_pro,
+        "pro_until": pro_until,
+        "renews_at": sub.get("renews_at"),
+        "days_remaining": days_remaining,
+        "price": PACKAGES["pro_monthly"]["amount"],
+    }
 
 
 @payments_router.get("/packages")
@@ -105,6 +148,45 @@ async def checkout_status(session_id: str, request: Request, user: dict = Depend
     await db.payment_transactions.update_one({"session_id": session_id}, {"$set": update})
 
     return {"payment_status": status.payment_status, "status": status.status}
+
+
+@payments_router.get("/subscription")
+async def get_subscription(user: dict = Depends(get_current_user)):
+    return _subscription_view(user)
+
+
+@payments_router.post("/subscription/cancel")
+async def cancel_subscription(user: dict = Depends(get_current_user)):
+    sub = user.get("subscription") or {}
+    if not sub:
+        raise HTTPException(status_code=400, detail="No active subscription")
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {
+            "subscription.auto_renew": False,
+            "subscription.status": "canceled",
+            "subscription.canceled_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    fresh = await db.users.find_one({"_id": user["_id"]})
+    return _subscription_view(fresh)
+
+
+@payments_router.post("/subscription/resume")
+async def resume_subscription(user: dict = Depends(get_current_user)):
+    sub = user.get("subscription") or {}
+    if not sub:
+        raise HTTPException(status_code=400, detail="No subscription to resume")
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {
+            "subscription.auto_renew": True,
+            "subscription.status": "active",
+            "subscription.canceled_at": None,
+        }},
+    )
+    fresh = await db.users.find_one({"_id": user["_id"]})
+    return _subscription_view(fresh)
 
 
 webhook_router = APIRouter(tags=["payments"])

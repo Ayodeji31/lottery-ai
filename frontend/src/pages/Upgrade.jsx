@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Check, Crown, Sparkles, Loader2, ArrowLeft } from "lucide-react";
+import { Check, Crown, Sparkles, Loader2, ArrowLeft, CalendarClock, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,15 @@ const proPerks = [
 ];
 
 export default function Upgrade() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [sub, setSub] = useState(null);
+  const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    api.get("/payments/subscription").then((r) => setSub(r.data)).catch(() => {});
+  }, [user]);
 
   const startCheckout = async () => {
     setLoading(true);
@@ -40,6 +46,38 @@ export default function Upgrade() {
       setLoading(false);
     }
   };
+
+  const cancelSub = async () => {
+    setBusy(true);
+    try {
+      const { data } = await api.post("/payments/subscription/cancel");
+      setSub(data);
+      await refreshUser();
+      toast.success("Auto-renew turned off. You keep Pro until your period ends.");
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resumeSub = async () => {
+    setBusy(true);
+    try {
+      const { data } = await api.post("/payments/subscription/resume");
+      setSub(data);
+      await refreshUser();
+      toast.success("Auto-renew turned back on.");
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const renewDate = sub?.renews_at
+    ? new Date(sub.renews_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+    : null;
 
   return (
     <div className="min-h-screen grid-bg">
@@ -64,6 +102,61 @@ export default function Upgrade() {
             More games, unlimited AI number sets and accuracy tracking. For entertainment — no system can guarantee a win.
           </p>
         </div>
+
+        {user?.is_pro && sub && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-2xl mx-auto mb-10 rounded-3xl border border-amber-400/30 bg-card/80 p-6 sm:p-8"
+            data-testid="manage-subscription"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Crown className="h-5 w-5 text-amber-400" />
+              <h2 className="font-heading text-xl font-bold">Your Pro subscription</h2>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4 mb-6">
+              <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
+                <p className="text-xs text-muted-foreground mb-1">Status</p>
+                <p className="font-semibold" data-testid="sub-status">
+                  {sub.status === "active" ? "Active · auto-renews" : "Canceled · ends soon"}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
+                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                  <CalendarClock className="h-3 w-3" /> {sub.auto_renew ? "Renews on" : "Access until"}
+                </p>
+                <p className="font-semibold" data-testid="sub-renew-date">
+                  {renewDate} · {sub.days_remaining} day{sub.days_remaining !== 1 ? "s" : ""} left
+                </p>
+              </div>
+            </div>
+            {sub.auto_renew ? (
+              <Button
+                data-testid="cancel-subscription-btn"
+                variant="outline"
+                onClick={cancelSub}
+                disabled={busy}
+                className="rounded-full border-white/15 text-muted-foreground hover:text-destructive"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <XCircle className="h-4 w-4 mr-2" />}
+                Cancel subscription
+              </Button>
+            ) : (
+              <Button
+                data-testid="resume-subscription-btn"
+                onClick={resumeSub}
+                disabled={busy}
+                className="rounded-full bg-amber-500 hover:bg-amber-400 text-black font-semibold"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Crown className="h-4 w-4 mr-2" />}
+                Resume auto-renew
+              </Button>
+            )}
+            <p className="text-xs text-muted-foreground mt-4">
+              Billing is £4.99 per 30-day period. Canceling keeps your Pro access until the current period ends.
+            </p>
+          </motion.div>
+        )}
 
         <div className="grid md:grid-cols-2 gap-6 items-stretch">
           <motion.div
