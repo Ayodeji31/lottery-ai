@@ -27,18 +27,21 @@
 - Account-gated predictions, saved predictions
 - Responsible-gambling disclaimers
 
-## Implemented (2026-07-12)
-- Email/password JWT auth (register/login/logout/me) with cookies; admin seeded.
+## Implemented (2026-07-12/13)
+- Email/password JWT auth (register/login/logout/me) with cookies + Bearer token (localStorage) for mobile/webview resilience; admin seeded.
 - Real draw scraping (52 Lotto + 52 EuroMillions), stored in Mongo.
 - Stats endpoint: hot, cold, overdue, full frequency.
 - Statistical prediction (frequency + overdue weighting, 3 sets).
-- AI prediction (gpt-5.4) returning 3 sets with reasoning + strategy summary.
-- Saved predictions CRUD (per-user).
-- Frontend: Landing, Auth, Dashboard (game toggle, stat cards, frequency chart, generators, recent draws), Saved page. Protected routes.
-- Tested: 21/21 backend pytest + full frontend flows pass.
+- AI prediction (gpt-5.4) returning 3 sets with reasoning + strategy summary; graceful statistical fallback.
+- Saved predictions CRUD (per-user, limit 100).
+- Frontend: Landing, Auth (password eye toggle), Dashboard (game toggle, stat cards, frequency chart, generators, recent draws), Saved page. Protected routes.
+- PWA: manifest + service worker + icons (installable, mobile-optimized).
+- Resilience: axios auto-retry on transient/cold-start failures (network/502/503/504).
+- **Monetization (Freemium + Stripe TEST mode):** Free = UK Lotto + 1 AI prediction/day; Pro (£4.99/mo) = all games + unlimited AI + accuracy tracker (tracker pending). Stripe Checkout via emergentintegrations; payment_transactions collection (idempotent); user.pro_until drives is_pro. Backend gating (402 upsell) on EuroMillions predictions & AI daily quota. Upgrade page, Go Pro/Pro badge in nav, payment-return polling.
+- Tested: 42/42 backend pytest + full paid Stripe flow + all frontend flows pass.
 
 ## Backlog / Next
-- P1: Periodic/admin-triggered data refresh scheduler.
-- P1: Pydantic schema for saved-prediction payload; env-driven secure cookie flag.
-- P2: Additional games (Thunderball, Set For Life); manual number picker & "check my numbers" against latest draw.
-- P2: Prediction accuracy tracking over time; shareable prediction cards.
+- P1: Build the **accuracy tracker** (match saved predictions vs latest real draws) — the headline Pro feature still to build.
+- P1: Real recurring subscription (Stripe Billing) + "Manage/Cancel subscription" + auto-renew; currently each payment grants 30 days.
+- P1: Tighten CORS_ORIGINS to explicit prod domain.
+- P2: Additional games (Thunderball, Set For Life); manual number picker & "check my numbers"; shareable prediction cards; syndicate/group-play manager.
