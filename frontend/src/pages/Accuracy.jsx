@@ -39,6 +39,7 @@ export default function Accuracy() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [gated, setGated] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     api
@@ -46,6 +47,7 @@ export default function Accuracy() {
       .then((r) => setData(r.data))
       .catch((err) => {
         if (err.response?.status === 402) setGated(true);
+        else setLoadError(true);
       });
   }, []);
 
@@ -77,9 +79,18 @@ export default function Accuracy() {
     return (
       <div className="min-h-screen grid-bg">
         <Navbar />
-        <div className="flex items-center justify-center py-24 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin mr-2 text-primary" /> Crunching your results…
-        </div>
+        {loadError ? (
+          <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-3" data-testid="accuracy-error">
+            <p>Couldn't load your accuracy data. Please try again.</p>
+            <Button variant="outline" className="rounded-full border-white/15" onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-24 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin mr-2 text-primary" /> Crunching your results…
+          </div>
+        )}
       </div>
     );
   }

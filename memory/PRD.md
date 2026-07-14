@@ -41,7 +41,7 @@
 - Tested: 42/42 backend pytest + full paid Stripe flow + all frontend flows pass.
 
 ## Backlog / Next
-- P1: Build the **accuracy tracker** (match saved predictions vs latest real draws) — the headline Pro feature still to build.
 - P1: Real recurring subscription (Stripe Billing) + "Manage/Cancel subscription" + auto-renew; currently each payment grants 30 days.
 - P1: Tighten CORS_ORIGINS to explicit prod domain.
 - P2: Additional games (Thunderball, Set For Life); manual number picker & "check my numbers"; shareable prediction cards; syndicate/group-play manager.
+- P2: Forward-looking accuracy (auto re-scrape new draws + track predictions made before each draw), on top of current backtest.
