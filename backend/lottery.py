@@ -181,8 +181,15 @@ async def refresh_game(game: str):
         return []
 
     new_draws = [d for d in parsed if d["draw_number"] not in existing_numbers]
-    await db.draws.delete_many({"game": game})
-    await db.draws.insert_many([{**d} for d in parsed])
+    # Upsert real draws (never shrink history if the source returns a short window);
+    # drop any previously-seeded sample rows now that we have real data.
+    await db.draws.delete_many({"game": game, "sample": True})
+    for d in parsed:
+        await db.draws.update_one(
+            {"game": game, "draw_number": d["draw_number"]},
+            {"$set": {**d}},
+            upsert=True,
+        )
     return new_draws
 
 

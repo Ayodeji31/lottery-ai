@@ -39,6 +39,9 @@
 - Resilience: axios auto-retry on transient/cold-start failures (network/502/503/504).
 - **Monetization (Freemium + Stripe TEST mode):** Free = UK Lotto + 1 AI prediction/day; Pro (£4.99/mo) = all games + unlimited AI + accuracy tracker (tracker pending). Stripe Checkout via emergentintegrations; payment_transactions collection (idempotent); user.pro_until drives is_pro. Backend gating (402 upsell) on EuroMillions predictions & AI daily quota. Upgrade page, Go Pro/Pro badge in nav, payment-return polling.
 - Tested: 42/42 backend pytest + full paid Stripe flow + all frontend flows pass.
+- **Accuracy Tracker (Pro):** `/api/accuracy` backtests saved sets vs real historical draws → best match, prize tier, hit rate. `/accuracy` page (Pro-gated upsell for free).
+- **Auto draw-refresh + prize notifications:** data source now beatlottery.co.uk (primary) + lottery.co.uk (fallback); `refresh_game` upserts draws (never shrinks history, keeps real data on scrape failure, no sample pollution). 6h background scheduler + admin `/api/admin/refresh-now`. On a genuinely new draw, Pro users whose saved set hits a tier get a "You would have won" notification (dedup by user+prediction+draw). Nav bell + badge + panel (`/api/notifications`).
+- Tested: 64/64 backend pytest + full notification/accuracy flows pass.
 
 ## Backlog / Next
 - P1: Real recurring subscription (Stripe Billing) + "Manage/Cancel subscription" + auto-renew; currently each payment grants 30 days.
