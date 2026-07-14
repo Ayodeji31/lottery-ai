@@ -42,6 +42,8 @@
 - **Accuracy Tracker (Pro):** `/api/accuracy` backtests saved sets vs real historical draws → best match, prize tier, hit rate. `/accuracy` page (Pro-gated upsell for free).
 - **Auto draw-refresh + prize notifications:** data source now beatlottery.co.uk (primary) + lottery.co.uk (fallback); `refresh_game` upserts draws (never shrinks history, keeps real data on scrape failure, no sample pollution). 6h background scheduler + admin `/api/admin/refresh-now`. On a genuinely new draw, Pro users whose saved set hits a tier get a "You would have won" notification (dedup by user+prediction+draw). Nav bell + badge + panel (`/api/notifications`).
 - Tested: 64/64 backend pytest + full notification/accuracy flows pass.
+- **In-app subscription management:** `/api/payments/subscription` (+cancel/resume) tracks status, auto-renew intent, renews-at, days-remaining; Manage-subscription panel on `/upgrade` for Pro users. NOTE: Emergent test Stripe key only supports one-time checkout via the wrapper — no true auto-recurring, no Stripe billing portal, no email prefill (requires user's own live Stripe key). Each £4.99 = 30 days.
+- Tested: 74/74 backend pytest + full subscription cancel/resume flow pass.
 
 ## Backlog / Next
 - P1: Real recurring subscription (Stripe Billing) + "Manage/Cancel subscription" + auto-renew; currently each payment grants 30 days.
