@@ -1,0 +1,43 @@
+{
+  "summary": "End-to-end verification of the new Pro-gated Accuracy Tracker. Backend: 48/48 pytest pass (6 new accuracy tests + 42 regression). Frontend: three critical states verified — FREE user sees Pro upsell + accuracy-upgrade-btn (routes to /upgrade), PRO user with saved sets sees summary cards + accuracy-item rows with sky/amber match highlighting (jackpot row highlights all 6 mains + bonus 41), PRO user with no saved sets sees accuracy-empty. Zero unexpected console errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_accuracy.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_payments_and_gating.py",
+    "/app/test_reports/pytest/pytest_accuracy.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "lottery.py _prize_tier: correctly gates lotto Jackpot on main=6; the jackpot best-match test with saved set [9,13,22,36,40,45]+[41] against real 2026-07-11 draw returns main_matched=6, bonus_matched=1, prize='Jackpot' - verified end-to-end.",
+    "lottery.py _evaluate_prediction: sorts best-match by score (main*10 + bonus) so bonus_matched breaks ties within same main count - good.",
+    "lottery.py /accuracy: uses draws_cache per game to avoid re-querying Mongo for multiple predictions of the same game - efficient. hit_rate rounded to 1dp; best_ever spans games via score comparison.",
+    "Accuracy.jsx: cleanly branches on gated || !user.is_pro to render upsell; on data.summary.tracked===0 renders accuracy-empty; otherwise summary + list. Ball component highlights matched main (sky) vs bonus (amber) using draw_main/draw_bonus arrays - matches the request spec exactly.",
+    "Accuracy.jsx: only checks err.response.status===402 for the gate; other errors (e.g., network 500) will leave the page stuck on the loader. Nit, not blocking.",
+    "Navbar.jsx: nav-accuracy Target icon link visible for all authenticated users, correctly routes to /accuracy where the Pro gate is enforced client-side + server-side.",
+    "App.js: /accuracy correctly wrapped in <Protected> - anonymous is redirected to /auth. Verified server-side that raw /api/accuracy returns 401 for anonymous.",
+    "Regression: euromillions still 402 for free, AI lotto still 1/day for free, saved CRUD, PWA, and payments checkout all still pass."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_accuracy.py (new file: 6 tests for anon/free/pro/empty/jackpot/regression)"
+  ],
+  "success_rate": {
+    "backend": "100% (48/48 pytest incl. 6 new accuracy tests)",
+    "frontend": "100% (FREE upsell + /upgrade routing, PRO summary + jackpot highlighting, PRO empty state, no console errors)"
+  },
+  "test_credentials": "Admin admin@lottopredict.app / admin123. UI seed users created this run: FREE=ui_acc_free_68a0ed34@lottopredict.app / Passw0rd!, PRO_WITH_DATA=ui_pro_c180e626@lottopredict.app / Passw0rd! (pro_until +30d, 2 saved lotto sets incl. jackpot), PRO_EMPTY=ui_pro_empty_4036ad5e@lottopredict.app / Passw0rd! (pro_until +30d, no saved sets).",
+  "seed_data_creation": "Registered 3 UI test users and ~10 pytest-scoped TEST_acc_*/TEST_gate_* users during the run. Saved 2 lotto predictions under PRO_WITH_DATA user (jackpot set [9,13,22,36,40,45]+[41] + one low-match set). All test-data prefixed with TEST_ or ui_*@lottopredict.app; no production data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "New endpoint: GET /api/accuracy (Pro-gated, 401 if unauth, 402 if free, 200 for Pro). Response shape: {summary:{tracked,total_draws_checked,total_prize_hits,hit_rate,best_ever(nullable)}, predictions:[{id,game,method,main_numbers,bonus_numbers,created_at,best,prize_hits,draws_checked}]}. Prize tiers: lotto 6 mains = Jackpot, 5+1 = Match 5+Bonus, 5=Match 5, 4=Match 4, 3=Match 3, 2=Match 2 (Lucky Dip); euromillions simplified. Frontend testids: nav-accuracy, accuracy-upgrade-btn, accuracy-empty, summary-tracked, summary-hits, summary-hitrate, accuracy-list, accuracy-item-<id>. To simulate Pro, set users.pro_until = ISO date +30d via Mongo directly (DB_NAME=test_database) - the auth.user_is_pro helper flips based on this value. Note: Accuracy.jsx only handles 402 error branch; other API errors leave page stuck on loader (nit, low priority).",
+  "rca of the issue": "N/A - new feature verification, no bugs found. Backend jackpot best-match returns main=6, bonus=1, prize='Jackpot' for saved set [9,13,22,36,40,45]+[41] against 2026-07-11 real lotto draw. UI matches exactly and highlights all 6 mains in sky + bonus 41 in amber."
+}

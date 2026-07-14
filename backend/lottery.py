@@ -377,3 +377,107 @@ async def delete_saved(pred_id: str, user: dict = Depends(get_current_user)):
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     return {"message": "Deleted"}
+
+
+# ---------- Accuracy tracker (Pro) ----------
+def _prize_tier(game: str, main_matched: int, bonus_matched: int):
+    """Return a prize label if the match qualifies for a prize, else None."""
+    if game == "lotto":
+        if main_matched == 6:
+            return "Jackpot"
+        if main_matched == 5 and bonus_matched >= 1:
+            return "Match 5 + Bonus"
+        if main_matched == 5:
+            return "Match 5"
+        if main_matched == 4:
+            return "Match 4"
+        if main_matched == 3:
+            return "Match 3"
+        if main_matched == 2:
+            return "Match 2 (Lucky Dip)"
+        return None
+    # euromillions (simplified tiers; minimum prize = 2 main, or 1 main + 2 stars)
+    if main_matched == 5 and bonus_matched == 2:
+        return "Jackpot"
+    if main_matched >= 2 or (main_matched == 1 and bonus_matched == 2) or (main_matched == 0 and bonus_matched == 2):
+        label = f"Match {main_matched}"
+        if bonus_matched:
+            label += f" + {bonus_matched} Star{'s' if bonus_matched > 1 else ''}"
+        return label
+    return None
+
+
+def _evaluate_prediction(pred: dict, draws: list):
+    main_set = set(pred.get("main_numbers", []))
+    bonus_set = set(pred.get("bonus_numbers", []))
+    best = None
+    prize_hits = 0
+    for d in draws:
+        m = len(main_set & set(d["main_numbers"]))
+        b = len(bonus_set & set(d.get("bonus_numbers", [])))
+        prize = _prize_tier(pred["game"], m, b)
+        if prize:
+            prize_hits += 1
+        score = m * 10 + b
+        if best is None or score > best["_score"]:
+            best = {
+                "_score": score,
+                "main_matched": m,
+                "bonus_matched": b,
+                "draw_date": d["draw_date"],
+                "draw_main": d["main_numbers"],
+                "draw_bonus": d.get("bonus_numbers", []),
+                "prize": prize,
+            }
+    if best:
+        best.pop("_score", None)
+    return {"draws_checked": len(draws), "best": best, "prize_hits": prize_hits}
+
+
+@lottery_router.get("/accuracy")
+async def accuracy(user: dict = Depends(get_current_user)):
+    if not user_is_pro(user):
+        raise HTTPException(
+            status_code=402,
+            detail="The accuracy tracker is a Pro feature. Upgrade to see how your sets perform.",
+        )
+    await ensure_data()
+    saved = await db.saved_predictions.find(
+        {"user_id": str(user["_id"])}, {"_id": 0}
+    ).sort("created_at", -1).limit(100).to_list(length=100)
+
+    draws_cache = {}
+    results = []
+    total_draws_checked = 0
+    total_prize_hits = 0
+    best_ever = None
+    for pred in saved:
+        game = pred["game"]
+        if game not in draws_cache:
+            draws_cache[game] = await _get_draws(game)
+        ev = _evaluate_prediction(pred, draws_cache[game])
+        total_draws_checked += ev["draws_checked"]
+        total_prize_hits += ev["prize_hits"]
+        entry = {
+            "id": pred["id"],
+            "game": game,
+            "method": pred.get("method", "manual"),
+            "main_numbers": pred.get("main_numbers", []),
+            "bonus_numbers": pred.get("bonus_numbers", []),
+            "created_at": pred.get("created_at"),
+            **ev,
+        }
+        results.append(entry)
+        if ev["best"] and (best_ever is None or (ev["best"]["main_matched"] * 10 + ev["best"]["bonus_matched"]) >
+                           (best_ever["main_matched"] * 10 + best_ever["bonus_matched"])):
+            best_ever = {**ev["best"], "game": game}
+
+    hit_rate = round(total_prize_hits / total_draws_checked * 100, 1) if total_draws_checked else 0
+    summary = {
+        "tracked": len(saved),
+        "total_draws_checked": total_draws_checked,
+        "total_prize_hits": total_prize_hits,
+        "hit_rate": hit_rate,
+        "best_ever": best_ever,
+    }
+    return {"summary": summary, "predictions": results}

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Sparkles, LayoutDashboard, Bookmark, LogOut, Crown } from "lucide-react";
+import { Sparkles, LayoutDashboard, Bookmark, LogOut, Crown, Target } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +11,7 @@ export const Navbar = () => {
 
   const links = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { to: "/accuracy", label: "Accuracy", icon: Target },
     { to: "/saved", label: "Saved", icon: Bookmark },
   ];
 
