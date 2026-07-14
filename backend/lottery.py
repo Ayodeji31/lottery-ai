@@ -12,7 +12,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 
-from auth import db, get_current_user
+from auth import db, get_current_user, user_is_pro
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 logger = logging.getLogger(__name__)
@@ -222,10 +222,40 @@ def statistical_prediction(stats_data, cfg, sets=1):
     return predictions
 
 
+FREE_GAME = "lotto"
+FREE_AI_DAILY_LIMIT = 1
+
+
+def _require_game_access(game: str, user: dict):
+    if game != FREE_GAME and not user_is_pro(user):
+        raise HTTPException(
+            status_code=402,
+            detail="EuroMillions predictions are a Pro feature. Upgrade to unlock all games.",
+        )
+
+
+async def _enforce_ai_quota(user: dict):
+    if user_is_pro(user):
+        return
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    usage = user.get("ai_usage") or {}
+    count = usage.get("count", 0) if usage.get("date") == today else 0
+    if count >= FREE_AI_DAILY_LIMIT:
+        raise HTTPException(
+            status_code=402,
+            detail="You've used your free AI prediction for today. Upgrade to Pro for unlimited AI predictions.",
+        )
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"ai_usage": {"date": today, "count": count + 1}}},
+    )
+
+
 @lottery_router.post("/predict/statistical/{game}")
 async def predict_statistical(game: str, user: dict = Depends(get_current_user)):
     if game not in GAMES:
         raise HTTPException(status_code=404, detail="Unknown game")
+    _require_game_access(game, user)
     await ensure_data()
     draws_list = await _get_draws(game)
     stats_data = compute_stats(draws_list, GAMES[game])
@@ -290,6 +320,8 @@ def _sanitize_predictions(data, cfg):
 async def predict_ai(game: str, user: dict = Depends(get_current_user)):
     if game not in GAMES:
         raise HTTPException(status_code=404, detail="Unknown game")
+    _require_game_access(game, user)
+    await _enforce_ai_quota(user)
     await ensure_data()
     cfg = GAMES[game]
     draws_list = await _get_draws(game)

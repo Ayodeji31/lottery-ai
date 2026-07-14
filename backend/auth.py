@@ -65,12 +65,24 @@ class LoginInput(BaseModel):
     password: str
 
 
+def user_is_pro(user: dict) -> bool:
+    pro_until = user.get("pro_until")
+    if not pro_until:
+        return False
+    try:
+        return datetime.fromisoformat(pro_until) > datetime.now(timezone.utc)
+    except (ValueError, TypeError):
+        return False
+
+
 def serialize_user(user: dict) -> dict:
     return {
         "id": str(user["_id"]),
         "name": user.get("name", ""),
         "email": user["email"],
         "role": user.get("role", "user"),
+        "is_pro": user_is_pro(user),
+        "pro_until": user.get("pro_until"),
     }
 
 

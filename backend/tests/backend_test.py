@@ -205,22 +205,27 @@ class TestPredictions:
         r = anon_client.post(f"{API}/predict/ai/lotto")
         assert r.status_code == 401
 
-    @pytest.mark.parametrize("game", ["lotto", "euromillions"])
-    def test_statistical(self, registered_user, game):
+    def test_statistical_lotto(self, registered_user):
+        # Lotto is the free game; free users must be able to run statistical predictions.
         s = registered_user["session"]
-        r = s.post(f"{API}/predict/statistical/{game}")
+        r = s.post(f"{API}/predict/statistical/lotto")
         assert r.status_code == 200, r.text
         data = r.json()
         assert data["method"] == "statistical"
-        assert data["game"] == game
+        assert data["game"] == "lotto"
         preds = data["predictions"]
         assert len(preds) == 3
-        expected_main = 6 if game == "lotto" else 5
-        expected_bonus = 1 if game == "lotto" else 2
         for p in preds:
-            assert len(p["main_numbers"]) == expected_main
-            assert len(p["bonus_numbers"]) == expected_bonus
-            assert len(set(p["main_numbers"])) == expected_main
+            assert len(p["main_numbers"]) == 6
+            assert len(p["bonus_numbers"]) == 1
+            assert len(set(p["main_numbers"])) == 6
+
+    def test_statistical_euromillions_gated_for_free(self, registered_user):
+        # EuroMillions is now Pro-only; free users get 402 with a helpful message.
+        s = registered_user["session"]
+        r = s.post(f"{API}/predict/statistical/euromillions")
+        assert r.status_code == 402, r.text
+        assert "Pro" in r.json().get("detail", "")
 
     def test_ai(self, registered_user):
         s = registered_user["session"]

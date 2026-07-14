@@ -6,6 +6,7 @@ import Landing from "@/pages/Landing";
 import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
 import Saved from "@/pages/Saved";
+import Upgrade from "@/pages/Upgrade";
 
 const Protected = ({ children }) => {
   const { user, ready } = useAuth();
@@ -29,6 +30,7 @@ function App() {
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
             <Route path="/saved" element={<Protected><Saved /></Protected>} />
+            <Route path="/upgrade" element={<Protected><Upgrade /></Protected>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

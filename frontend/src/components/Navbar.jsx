@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Sparkles, LayoutDashboard, Bookmark, LogOut } from "lucide-react";
+import { Sparkles, LayoutDashboard, Bookmark, LogOut, Crown } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 
@@ -31,6 +31,24 @@ export const Navbar = () => {
 
         {user && (
           <nav className="flex items-center gap-1 sm:gap-2">
+            {user.is_pro ? (
+              <span
+                data-testid="pro-badge"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-400/15 text-amber-300 border border-amber-400/30"
+              >
+                <Crown className="h-3.5 w-3.5" /> Pro
+              </span>
+            ) : (
+              <Link to="/upgrade" data-testid="nav-upgrade">
+                <Button
+                  size="sm"
+                  className="rounded-full bg-amber-500 hover:bg-amber-400 text-black font-semibold h-8"
+                >
+                  <Crown className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Go Pro</span>
+                </Button>
+              </Link>
+            )}
             {links.map((l) => {
               const active = location.pathname === l.to;
               const Icon = l.icon;

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="14" time="6.694" timestamp="2026-07-14T09:22:16.647824+00:00" hostname="agent-env-c91ef00e-f3f5-4451-aa5b-242cd4855189"><testcase classname="tests.test_payments_and_gating.TestPaymentsCheckout" name="test_checkout_requires_auth" time="0.210" /><testcase classname="tests.test_payments_and_gating.TestGatingFreshFreeUser" name="test_euromillions_statistical_402_for_free" time="0.723" /><testcase classname="tests.test_payments_and_gating.TestPaymentsCheckout" name="test_checkout_invalid_package" time="0.559" /><testcase classname="tests.test_payments_and_gating.TestGatingFreshFreeUser" name="test_euromillions_ai_402_for_free" time="0.584" /><testcase classname="tests.test_payments_and_gating.TestPaymentsCheckout" name="test_checkout_creates_session_and_transaction" time="1.627" /><testcase classname="tests.test_payments_and_gating.TestGatingFreshFreeUser" name="test_ai_lotto_daily_limit" time="4.049" /><testcase classname="tests.test_payments_and_gating.TestPaymentsCheckout" name="test_status_unknown_session_404" time="0.533" /><testcase classname="tests.test_payments_and_gating.TestPaymentsCheckout" name="test_status_requires_auth" time="0.097" /><testcase classname="tests.test_payments_and_gating.TestAdminGating" name="test_admin_euromillions_gated_when_free" time="0.071"><failure message="KeyError: 'MONGO_URL'">backend/tests/test_payments_and_gating.py:175: in test_admin_euromillions_gated_when_free
+    client = motor.motor_asyncio.AsyncIOMotorClient(os.environ["MONGO_URL"])
+                                                    ^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen os&gt;:679: in __getitem__
+    ???
+E   KeyError: 'MONGO_URL'</failure></testcase><testcase classname="tests.test_payments_and_gating.TestAdminGating" name="test_admin_ai_lotto_quota" time="0.000"><failure message="KeyError: 'MONGO_URL'">backend/tests/test_payments_and_gating.py:190: in test_admin_ai_lotto_quota
+    client = motor.motor_asyncio.AsyncIOMotorClient(os.environ["MONGO_URL"])
+                                                    ^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen os&gt;:679: in __getitem__
+    ???
+E   KeyError: 'MONGO_URL'</failure></testcase><testcase classname="tests.test_payments_and_gating.TestPaymentsPackages" name="test_packages_public" time="0.144" /><testcase classname="tests.test_payments_and_gating.TestProUnlocksGating" name="test_pro_user_can_access_euromillions_and_unlimited_ai" time="0.326"><failure message="KeyError: 'MONGO_URL'">backend/tests/test_payments_and_gating.py:219: in test_pro_user_can_access_euromillions_and_unlimited_ai
+    client = motor.motor_asyncio.AsyncIOMotorClient(os.environ["MONGO_URL"])
+                                                    ^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen os&gt;:679: in __getitem__
+    ???
+E   KeyError: 'MONGO_URL'</failure></testcase><testcase classname="tests.test_payments_and_gating.TestGatingFreshFreeUser" name="test_statistical_lotto_unlimited" time="0.484" /><testcase classname="tests.test_payments_and_gating.TestGatingFreshFreeUser" name="test_me_reports_is_pro_false" time="0.365" /></testsuite></testsuites>

@@ -11,6 +11,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from auth import auth_router, seed_admin, db
 from lottery import lottery_router, ensure_data
+from payments import payments_router, webhook_router
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -20,6 +21,8 @@ app = FastAPI(title="LottoPredict API")
 
 app.include_router(auth_router)
 app.include_router(lottery_router)
+app.include_router(payments_router)
+app.include_router(webhook_router)
 
 cors_origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 

@@ -1,0 +1,44 @@
+{
+  "summary": "End-to-end verification of Stripe TEST-mode Pro subscription + Free/Pro gating. Backend: 42/42 pytest pass (14 new gating + payments tests, 28 regression). Frontend: full purchase flow completed with test card 4242 4242 4242 4242 -> user upgraded, pro-badge appears, nav-upgrade + free-plan-banner disappear, EuroMillions unlocks, AI unlimited, saved predictions still work.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_payments_and_gating.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/pytest_gating.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "payments.py: /api/payments/checkout & /status/{session_id} correctly require auth (401 for anon), invalid package_id -> 400, unknown session_id -> 404. Package amount is server-defined (£4.99 gbp) so client cannot tamper.",
+    "payments.py: /status endpoint activates Pro on payment_status='paid' and sets processed=True so re-polling is idempotent. Verified: pro_until stayed constant across two /auth/me polls after activation.",
+    "lottery.py _require_game_access + _enforce_ai_quota: correctly return 402 with Pro-upsell detail message; ai_usage keyed by UTC date so quota resets naturally at midnight UTC.",
+    "auth.py serialize_user: returns is_pro (computed from pro_until vs now) and pro_until - Navbar/Dashboard read both correctly. Admin (admin@lottopredict.app) is a plain 'user role=admin' - not auto-Pro; verified admin also hits 402 on EuroMillions and daily AI quota unless upgraded.",
+    "Dashboard.jsx: strips ?session_id= from URL immediately via setSearchParams({},{replace:true}) after starting poll - correct so a browser refresh does not re-poll. This also means Playwright cannot assert on session_id in the URL post-redirect; the pro-badge is the reliable signal.",
+    "Upgrade.jsx origin_url uses window.location.origin which produces the preview-domain success URL - verified Stripe hosted checkout redirected back to https://jackpot-analyzer-24.preview.emergentagent.com/dashboard?session_id=...",
+    "Nit: payment-verifying banner (data-testid='payment-verifying') can flash for <500ms if /payments/status returns 'paid' on the first poll; considered acceptable UX, but the toast 'Welcome to Pro' is the primary success signal.",
+    "Nit: pollPayment has MAX=6 attempts × 2s = ~12s ceiling; enough for test-mode but a 'complete' status w/ payment_status still 'unpaid' currently falls into the retry loop instead of exiting - low risk given the finite MAX.",
+    "Pre-existing (not in scope): CORS_ORIGINS='*' with allow_credentials=True is technically invalid per fetch spec; Bearer auth is unaffected so no impact on this feature."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (updated TestPredictions.test_statistical to reflect new gating: lotto stays 200, euromillions -> 402 for free users)",
+    "/app/backend/tests/test_payments_and_gating.py (new file: 14 tests for packages/checkout/status/gating/admin/pro-unlock)"
+  ],
+  "success_rate": {
+    "backend": "100% (42/42 pytest, incl. 14 new tests: packages, checkout auth+400+session_creation, status 404+401, EM 402 for free, AI daily-limit 402 for free, statistical lotto unlimited, admin same gates, pro user unlocks all)",
+    "frontend": "100% (signup+free plan UX -> EM tab locked routes to /upgrade, banner-upgrade-btn visible, upgrade-checkout-btn -> Stripe hosted checkout (£4.99 gbp) -> pay with 4242 -> redirect back -> pro-badge appears, banner+nav-upgrade removed, EM enabled, AI unlimited, save & /saved still work)"
+  },
+  "test_credentials": "Admin admin@lottopredict.app / admin123 verified (reset pro_until/ai_usage before assertions). Free users created per run (TEST_gate_*, test_ui_*, test_banner_*). Upgraded Pro user: test_stripe2_1784021310@lottopredict.app / Passw0rd! (pro_until=2026-08-13).",
+  "seed_data_creation": "Multiple test users registered during the run (all prefixed TEST_ or test_*@lottopredict.app). One user completed real Stripe TEST-mode checkout and now has pro_until set. Several payment_transactions rows created (one processed:true, others still 'initiated' from unfinished checkouts). No production data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "New endpoints: GET /api/payments/packages (public), POST /api/payments/checkout (auth), GET /api/payments/status/{session_id} (auth), POST /api/webhook/stripe (public). Free-plan rules: only 'lotto' allowed for statistical & AI; 1 AI per UTC-day for free; euromillions predictions (statistical + ai) -> 402 for free. Pro flag is derived from pro_until timestamp; setting pro_until = now+30d in Mongo directly is a valid way to simulate Pro without going through Stripe. Frontend testids added this iteration: nav-upgrade, pro-badge, free-plan-banner, banner-upgrade-btn, payment-verifying, plan-free, plan-pro, upgrade-checkout-btn, upgrade-back, game-tab-euromillions, game-tab-lotto. To rerun the full paid flow, use Stripe test card 4242 4242 4242 4242, any future date, any CVC, US ZIP 94103 (checkout defaults to US country).",
+  "rca of the issue": "N/A - feature verification pass, no bugs. One initial false-negative in my own Playwright script: I asserted 'session_id=' in window.location, but Dashboard.jsx strips session_id from the URL right after mounting via setSearchParams(...,{replace:true}). The activation itself worked (pro-badge visible in the same screenshot). Rerunning with pro-badge as the primary signal confirmed the full paid flow end-to-end."
+}

@@ -1,28 +1,36 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { BarChart, Bar, ResponsiveContainer, XAxis, Tooltip, Cell } from "recharts";
-import { Flame, Snowflake, Clock, Brain, Calculator, Bookmark, Loader2 } from "lucide-react";
+import { Flame, Snowflake, Clock, Brain, Calculator, Bookmark, Loader2, Lock, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { Navbar } from "@/components/Navbar";
 import { BallRow } from "@/components/LotteryBall";
 import { Button } from "@/components/ui/button";
 import { useLotteryData } from "@/hooks/useLotteryData";
+import { useAuth } from "@/context/AuthContext";
 import api, { formatApiError } from "@/lib/api";
 
-const GameToggle = ({ games, active, onChange }) => (
+const FREE_GAME = "lotto";
+
+const GameToggle = ({ games, active, onChange, isPro }) => (
   <div className="inline-flex rounded-full border border-white/10 bg-card/60 p-1" data-testid="game-toggle">
-    {games.map((g) => (
-      <button
-        key={g.id}
-        data-testid={`game-tab-${g.id}`}
-        onClick={() => onChange(g.id)}
-        className={`px-4 sm:px-6 py-2 rounded-full text-sm font-semibold transition-colors ${
-          active === g.id ? "bg-primary text-primary-foreground shadow-[0_0_16px_rgba(14,165,233,0.4)]" : "text-muted-foreground hover:text-foreground"
-        }`}
-      >
-        {g.name}
-      </button>
-    ))}
+    {games.map((g) => {
+      const locked = !isPro && g.id !== FREE_GAME;
+      return (
+        <button
+          key={g.id}
+          data-testid={`game-tab-${g.id}`}
+          onClick={() => onChange(g.id)}
+          className={`flex items-center gap-1.5 px-4 sm:px-6 py-2 rounded-full text-sm font-semibold transition-colors ${
+            active === g.id ? "bg-primary text-primary-foreground shadow-[0_0_16px_rgba(14,165,233,0.4)]" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {locked && <Lock className="h-3 w-3" />}
+          {g.name}
+        </button>
+      );
+    })}
   </div>
 );
 
@@ -48,16 +56,68 @@ const StatCard = ({ icon: Icon, title, color, items, testid }) => (
 );
 
 export default function Dashboard() {
+  const { user, refreshUser } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [active, setActive] = useState("lotto");
   const { games, stats, draws } = useLotteryData(active);
   const [preds, setPreds] = useState(null);
   const [summary, setSummary] = useState("");
   const [method, setMethod] = useState("");
   const [loadingPred, setLoadingPred] = useState("");
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+
+  const isPro = !!user?.is_pro;
 
   useEffect(() => {
     setPreds(null);
   }, [active]);
+
+  const selectGame = (gameId) => {
+    if (!isPro && gameId !== FREE_GAME) {
+      toast.info("EuroMillions is a Pro feature. Upgrade to unlock all games.");
+      navigate("/upgrade");
+      return;
+    }
+    setActive(gameId);
+  };
+
+  // Poll payment status after returning from Stripe Checkout
+  const pollPayment = useCallback(
+    async (sessionId, attempts = 0) => {
+      const MAX = 6;
+      try {
+        const { data } = await api.get(`/payments/status/${sessionId}`);
+        if (data.payment_status === "paid") {
+          await refreshUser();
+          setVerifyingPayment(false);
+          toast.success("Welcome to Pro! 🎉 All features unlocked.");
+          return;
+        }
+        if (data.status === "expired" || attempts >= MAX) {
+          setVerifyingPayment(false);
+          toast.error("Payment not completed. Please try again.");
+          return;
+        }
+        setTimeout(() => pollPayment(sessionId, attempts + 1), 2000);
+      } catch (err) {
+        setVerifyingPayment(false);
+        toast.error("Could not verify payment.");
+      }
+    },
+    [refreshUser]
+  );
+
+  useEffect(() => {
+    const sessionId = searchParams.get("session_id");
+    if (sessionId) {
+      setVerifyingPayment(true);
+      pollPayment(sessionId);
+      searchParams.delete("session_id");
+      setSearchParams(searchParams, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const generate = async (kind) => {
     setLoadingPred(kind);
@@ -68,7 +128,12 @@ export default function Dashboard() {
       setSummary(data.summary || "");
       setMethod(data.method);
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail) || "Failed to generate");
+      if (err.response?.status === 402) {
+        toast.info(formatApiError(err.response?.data?.detail));
+        navigate("/upgrade");
+      } else {
+        toast.error(formatApiError(err.response?.data?.detail) || "Failed to generate");
+      }
     } finally {
       setLoadingPred("");
     }
@@ -105,8 +170,37 @@ export default function Dashboard() {
               {stats ? `Analysing ${stats.total_draws} real historical draws` : "Loading draw history…"}
             </p>
           </div>
-          <GameToggle games={games} active={active} onChange={setActive} />
+          <GameToggle games={games} active={active} onChange={selectGame} isPro={isPro} />
         </div>
+
+        {verifyingPayment && (
+          <div
+            data-testid="payment-verifying"
+            className="mb-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 flex items-center gap-3 text-amber-200"
+          >
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Confirming your payment…
+          </div>
+        )}
+
+        {!isPro && (
+          <div
+            data-testid="free-plan-banner"
+            className="mb-4 rounded-2xl border border-white/10 bg-card/60 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+          >
+            <p className="text-sm text-muted-foreground">
+              <span className="text-foreground font-semibold">Free plan:</span> UK Lotto + 1 AI prediction/day. Upgrade for unlimited AI & EuroMillions.
+            </p>
+            <Button
+              data-testid="banner-upgrade-btn"
+              size="sm"
+              onClick={() => navigate("/upgrade")}
+              className="rounded-full bg-amber-500 hover:bg-amber-400 text-black font-semibold shrink-0"
+            >
+              <Crown className="h-4 w-4 mr-1.5" /> Go Pro — £4.99/mo
+            </Button>
+          </div>
+        )}
 
         {/* Generators */}
         <div className="grid lg:grid-cols-12 gap-4 mb-4">
